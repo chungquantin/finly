@@ -20,13 +20,30 @@ from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 
 from finly_agents.models import (
+    AgentPanelMessage,
     ChatRequest,
     ChatResponse,
     HeartbeatAlert,
+    IntakeRequest,
+    IntakeResponse,
     MarketTicker,
     OnboardingRequest,
+    PanelChatRequest,
+    PanelChatResponse,
+    PortfolioImportRequest,
+    PortfolioResponse,
+    ReportGenerateRequest,
+    ReportRegenerateRequest,
+    ReportResponse,
     SpecialistInsight,
     UserProfile,
+)
+from finly_agents.database import (
+    init_db,
+    get_user,
+    get_reports,
+    get_latest_report,
+    save_report,
 )
 from finly_agents.profiles import (
     append_chat,
@@ -124,7 +141,10 @@ def _build_graph(model_name: str, selected_analysts: list[str]) -> TradingAgents
     return TradingAgentsGraph(debug=False, config=config, selected_analysts=selected_analysts)
 
 
-def _run_finly_agents(request: ChatCompletionsRequest) -> dict[str, Any]:
+def _run_finly_agents(
+    request: ChatCompletionsRequest,
+    user_context: str = "",
+) -> dict[str, Any]:
     if not request.messages:
         raise HTTPException(status_code=400, detail="messages is required")
 
@@ -136,7 +156,7 @@ def _run_finly_agents(request: ChatCompletionsRequest) -> dict[str, Any]:
     model_name = os.getenv("FINLY_AGENT_MODEL", "openai/gpt-4.1-mini")
 
     graph = _build_graph(model_name=model_name, selected_analysts=selected_analysts)
-    final_state, decision = graph.propagate(ticker, trade_date)
+    final_state, decision = graph.propagate(ticker, trade_date, user_context=user_context)
 
     final_report = final_state.get("final_trade_decision", "")
     content = (
@@ -156,7 +176,6 @@ def _run_finly_agents(request: ChatCompletionsRequest) -> dict[str, Any]:
 
 
 def _truncate_sentences(text: str, max_sentences: int = 3) -> str:
-    """Return first N sentences from text."""
     if not text:
         return ""
     sentences = re.split(r'(?<=[.!?])\s+', str(text))
@@ -164,11 +183,10 @@ def _truncate_sentences(text: str, max_sentences: int = 3) -> str:
 
 
 def _extract_specialist_insights(final_state: dict) -> list[SpecialistInsight]:
-    """Map internal state fields to user-friendly specialist insights."""
     mappings = [
         ("market_report", "market_analyst"),
-        ("fundamentals_report", "portfolio_manager"),
-        ("news_report", "researcher"),
+        ("fundamentals_report", "fundamentals_analyst"),
+        ("news_report", "news_analyst"),
         ("sentiment_report", "sentiment_analyst"),
     ]
     insights = []
@@ -178,12 +196,12 @@ def _extract_specialist_insights(final_state: dict) -> list[SpecialistInsight]:
             insights.append(SpecialistInsight(
                 role=role,
                 summary=_truncate_sentences(text, 3),
+                full_analysis=text,
             ))
 
     # Extract risk section from final_trade_decision
     ftd = final_state.get("final_trade_decision", "")
     if ftd:
-        # Try to find risk-related content
         risk_text = ""
         for line in ftd.split("\n"):
             if any(kw in line.lower() for kw in ("risk", "downside", "stop-loss", "caution")):
@@ -193,6 +211,29 @@ def _extract_specialist_insights(final_state: dict) -> list[SpecialistInsight]:
             insights.append(SpecialistInsight(role="risk_assessor", summary=risk_text))
 
     return insights
+
+
+def _extract_agent_reasoning(final_state: dict) -> dict:
+    """Extract per-agent reasoning into a structured dict for storage."""
+    return {
+        "market_report": final_state.get("market_report", ""),
+        "fundamentals_report": final_state.get("fundamentals_report", ""),
+        "news_report": final_state.get("news_report", ""),
+        "sentiment_report": final_state.get("sentiment_report", ""),
+        "investment_debate": {
+            "bull_case": final_state.get("investment_debate_state", {}).get("bull_history", ""),
+            "bear_case": final_state.get("investment_debate_state", {}).get("bear_history", ""),
+            "judge_decision": final_state.get("investment_debate_state", {}).get("judge_decision", ""),
+        },
+        "risk_debate": {
+            "aggressive": final_state.get("risk_debate_state", {}).get("aggressive_history", ""),
+            "conservative": final_state.get("risk_debate_state", {}).get("conservative_history", ""),
+            "neutral": final_state.get("risk_debate_state", {}).get("neutral_history", ""),
+            "judge_decision": final_state.get("risk_debate_state", {}).get("judge_decision", ""),
+        },
+        "trader_plan": final_state.get("trader_investment_plan", ""),
+        "investment_plan": final_state.get("investment_plan", ""),
+    }
 
 
 def _split_chunks(text: str, chunk_size: int = 120) -> list[str]:
@@ -207,7 +248,7 @@ def _sse_data(payload: dict[str, Any]) -> str:
 # App
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="Finly Agents API", version="0.1.0")
+app = FastAPI(title="Finly Agents API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -220,12 +261,13 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
+    init_db()
     seed_demo_alerts()
-    logger.info("Finly Agents API started — demo alerts seeded")
+    logger.info("Finly Agents API started — DB initialised, demo alerts seeded")
 
 
 # ---------------------------------------------------------------------------
-# Health & models (existing)
+# Health & models
 # ---------------------------------------------------------------------------
 
 @app.get("/healthz")
@@ -360,61 +402,245 @@ async def user_chat_history(user_id: str, limit: int = Query(default=20, le=100)
 
 
 # ---------------------------------------------------------------------------
-# Simplified chat endpoint
+# Portfolio import
+# ---------------------------------------------------------------------------
+
+@app.post("/api/portfolio/import")
+async def portfolio_import(req: PortfolioImportRequest) -> PortfolioResponse:
+    """Import portfolio — modes: mock, csv, manual."""
+    from finly_agents.portfolio import import_portfolio
+
+    items_dicts = [item.model_dump() for item in req.items] if req.items else None
+    result = import_portfolio(
+        user_id=req.user_id,
+        mode=req.mode,
+        items=items_dicts,
+        csv_data=req.csv_data,
+    )
+    return PortfolioResponse(user_id=req.user_id, items=result)
+
+
+@app.get("/api/user/{user_id}/portfolio")
+async def user_portfolio(user_id: str):
+    from finly_agents.database import get_portfolio
+    items = get_portfolio(user_id)
+    return PortfolioResponse(user_id=user_id, items=items)
+
+
+# ---------------------------------------------------------------------------
+# Intake conversation (goal extraction)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/intake")
+async def intake_endpoint(req: IntakeRequest) -> IntakeResponse:
+    """Conversational intake — max 2 follow-ups, then produces goals brief."""
+    from finly_agents.intake import run_intake
+
+    result = await run_intake(req.user_id, req.message)
+    return IntakeResponse(**result)
+
+
+@app.post("/api/intake/reset")
+async def intake_reset(user_id: str = Query(...)):
+    """Reset intake conversation to start fresh."""
+    from finly_agents.intake import reset_intake
+    reset_intake(user_id)
+    return {"status": "ok", "message": "Intake conversation reset"}
+
+
+# ---------------------------------------------------------------------------
+# Report generation
+# ---------------------------------------------------------------------------
+
+@app.post("/api/report/generate")
+async def report_generate(req: ReportGenerateRequest) -> ReportResponse:
+    """Generate investment report using the 4-agent pipeline.
+
+    Incorporates user profile, portfolio, goals brief, and memories as context.
+    """
+    from finly_agents.context import build_user_context
+
+    user = get_user(req.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found. Complete onboarding first.")
+
+    user_context = build_user_context(req.user_id)
+    goals_brief = user.get("goals_brief", "")
+
+    # Determine ticker
+    ticker = req.ticker
+    if not ticker and goals_brief:
+        ticker = _extract_ticker(goals_brief)
+    if not ticker:
+        ticker = os.getenv("FINLY_DEFAULT_TICKER", "FPT")
+    ticker = ticker.upper()
+
+    # Build internal request
+    internal_req = ChatCompletionsRequest(
+        messages=[Message(role="user", content=f"Analyze {ticker} for investment")],
+        ticker=ticker,
+    )
+
+    try:
+        result = await asyncio.to_thread(_run_finly_agents, internal_req, user_context)
+    except Exception as e:
+        logger.exception("Report generation failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    final_state = result.get("final_state", {})
+    agent_reasoning = _extract_agent_reasoning(final_state)
+    summary = _truncate_sentences(result.get("content", ""), 5)
+    full_report = final_state.get("final_trade_decision", result.get("content", ""))
+
+    # Save to database
+    report = save_report(
+        user_id=req.user_id,
+        ticker=result["ticker"],
+        decision=result["decision"],
+        summary=summary,
+        full_report=full_report,
+        agent_reasoning=agent_reasoning,
+        intake_brief=goals_brief,
+    )
+
+    # Record in chat history
+    append_chat(req.user_id, "assistant", f"Report generated for {ticker}: {summary}")
+
+    return ReportResponse(
+        report_id=report["id"],
+        user_id=req.user_id,
+        ticker=result["ticker"],
+        decision=result["decision"],
+        summary=summary,
+        full_report=full_report,
+        agent_reasoning=agent_reasoning,
+        intake_brief=goals_brief,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Panel discussion (chat with the team)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/report/chat")
+async def report_chat(req: PanelChatRequest) -> PanelChatResponse:
+    """Chat with the analyst team — each agent responds individually."""
+    from finly_agents.panel import run_panel_discussion
+
+    result = await run_panel_discussion(
+        user_id=req.user_id,
+        message=req.message,
+        report_id=req.report_id,
+    )
+
+    return PanelChatResponse(
+        user_id=result["user_id"],
+        question=result["question"],
+        agent_responses=[AgentPanelMessage(**r) for r in result["agent_responses"]],
+        memory_updates=result.get("memory_updates", []),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Report regeneration
+# ---------------------------------------------------------------------------
+
+@app.post("/api/report/regenerate")
+async def report_regenerate(req: ReportRegenerateRequest) -> ReportResponse:
+    """Regenerate report with updated user context (profile, memories, etc.)."""
+    # Get the previous report to know the ticker
+    previous = get_latest_report(req.user_id)
+    if not previous:
+        raise HTTPException(status_code=404, detail="No previous report found. Generate one first.")
+
+    ticker = previous.get("ticker", os.getenv("FINLY_DEFAULT_TICKER", "FPT"))
+
+    # Regenerate with current user context (which may have been updated via panel chat)
+    gen_req = ReportGenerateRequest(user_id=req.user_id, ticker=ticker)
+    return await report_generate(gen_req)
+
+
+# ---------------------------------------------------------------------------
+# User memories
+# ---------------------------------------------------------------------------
+
+@app.get("/api/user/{user_id}/memories")
+async def user_memories(user_id: str):
+    from finly_agents.database import get_memories
+    return get_memories(user_id)
+
+
+@app.get("/api/user/{user_id}/reports")
+async def user_reports(user_id: str, limit: int = Query(default=10, le=50)):
+    return get_reports(user_id, limit=limit)
+
+
+# ---------------------------------------------------------------------------
+# Simplified chat endpoint (updated with context)
 # ---------------------------------------------------------------------------
 
 @app.post("/api/chat")
 async def api_chat(req: ChatRequest):
     """Simplified chat — returns structured ChatResponse with specialist insights."""
-    # Record user message
+    from finly_agents.context import build_user_context
+    from finly_agents.memory import extract_and_store_memories
+
     append_chat(req.user_id, "user", req.message)
 
     ticker = req.ticker or _extract_ticker(req.message) or os.getenv("FINLY_DEFAULT_TICKER", "FPT")
     ticker = ticker.upper()
 
-    # Build an internal ChatCompletionsRequest
+    user_context = build_user_context(req.user_id)
+
     internal_req = ChatCompletionsRequest(
         messages=[Message(role="user", content=req.message)],
         ticker=ticker,
     )
 
     try:
-        result = await asyncio.to_thread(_run_finly_agents, internal_req)
+        result = await asyncio.to_thread(_run_finly_agents, internal_req, user_context)
     except Exception as e:
         logger.exception("Agent pipeline failed in /api/chat")
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)},
-        )
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
     final_state = result.get("final_state", {})
     insights = _extract_specialist_insights(final_state)
+    summary = _truncate_sentences(result.get("content", ""), 5)
 
     response = ChatResponse(
         ticker=result["ticker"],
         decision=result["decision"],
-        summary=_truncate_sentences(result.get("content", ""), 5),
+        summary=summary,
         specialist_insights=insights,
         full_report=final_state.get("final_trade_decision", result.get("content", "")),
     )
 
-    # Record assistant reply
     append_chat(req.user_id, "assistant", response.summary)
+
+    # Extract memories in background
+    try:
+        await extract_and_store_memories(req.user_id, req.message, response.summary)
+    except Exception:
+        pass
 
     return response
 
 
 # ---------------------------------------------------------------------------
-# Voice chat endpoint
+# Voice chat endpoint (updated with context)
 # ---------------------------------------------------------------------------
 
 @app.post("/api/chat/voice")
 async def api_chat_voice(req: ChatRequest):
     """Chat + ElevenLabs TTS audio response. Falls back to JSON if TTS unavailable."""
+    from finly_agents.context import build_user_context
+
     append_chat(req.user_id, "user", req.message)
 
     ticker = req.ticker or _extract_ticker(req.message) or os.getenv("FINLY_DEFAULT_TICKER", "FPT")
     ticker = ticker.upper()
+
+    user_context = build_user_context(req.user_id)
 
     internal_req = ChatCompletionsRequest(
         messages=[Message(role="user", content=req.message)],
@@ -422,7 +648,7 @@ async def api_chat_voice(req: ChatRequest):
     )
 
     try:
-        result = await asyncio.to_thread(_run_finly_agents, internal_req)
+        result = await asyncio.to_thread(_run_finly_agents, internal_req, user_context)
     except Exception as e:
         logger.exception("Agent pipeline failed in /api/chat/voice")
         return JSONResponse(status_code=500, content={"error": str(e)})
@@ -433,7 +659,6 @@ async def api_chat_voice(req: ChatRequest):
 
     append_chat(req.user_id, "assistant", summary)
 
-    # Try TTS
     from finly_agents.voice import text_to_speech
 
     audio_bytes = await text_to_speech(summary)
@@ -444,7 +669,6 @@ async def api_chat_voice(req: ChatRequest):
             headers={"X-Finly-Ticker": result["ticker"], "X-Finly-Decision": result["decision"]},
         )
 
-    # Fallback to JSON
     return ChatResponse(
         ticker=result["ticker"],
         decision=result["decision"],
@@ -460,8 +684,7 @@ async def api_chat_voice(req: ChatRequest):
 
 @app.get("/api/market-data")
 async def market_data(tickers: str = Query(default="VCB,FPT,VNM,TPB")):
-    """Return current mock prices for Vietnamese tickers."""
-    from finly_agents.mock_data import VN_TICKERS, _BASE_PRICES, _clean, is_vn_ticker
+    from finly_agents.mock_data import _BASE_PRICES, _clean
 
     import random
 
@@ -476,19 +699,13 @@ async def market_data(tickers: str = Query(default="VCB,FPT,VNM,TPB")):
             price = round(base * (1 + change_pct / 100))
             results.append(
                 MarketTicker(
-                    ticker=clean,
-                    price=price,
-                    change_pct=change_pct,
-                    currency="VND",
+                    ticker=clean, price=price, change_pct=change_pct, currency="VND",
                 ).model_dump()
             )
         else:
             results.append(
                 MarketTicker(
-                    ticker=raw_ticker,
-                    price=0.0,
-                    change_pct=0.0,
-                    currency="USD",
+                    ticker=raw_ticker, price=0.0, change_pct=0.0, currency="USD",
                 ).model_dump()
             )
     return results
@@ -500,14 +717,12 @@ async def market_data(tickers: str = Query(default="VCB,FPT,VNM,TPB")):
 
 @app.get("/api/heartbeat/alerts")
 async def heartbeat_alerts(user_id: str = Query(default="broadcast")):
-    """Poll and clear pending alerts for a user."""
     alerts = get_pending_alerts(user_id)
     return [a.model_dump() for a in alerts]
 
 
 @app.post("/api/heartbeat/trigger")
 async def heartbeat_trigger(scenario: str = Query(...), user_id: str = Query(default="broadcast")):
-    """Admin: inject an alert scenario."""
     try:
         alert = trigger_alert(scenario, user_id)
         return alert.model_dump()

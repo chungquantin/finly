@@ -1,32 +1,40 @@
-"""In-memory user profile and chat history store."""
+"""User profile and chat history — SQLite-backed.
+
+This module wraps the database layer to maintain backward compatibility
+with existing code that imports from profiles.py.
+"""
 
 from __future__ import annotations
 
+from finly_agents.database import (
+    append_conversation,
+    get_conversation_history,
+    get_user,
+    upsert_user,
+)
 from finly_agents.models import OnboardingRequest, UserProfile
-
-_profiles: dict[str, UserProfile] = {}
-_chat_history: dict[str, list[dict]] = {}
 
 
 def create_or_update_profile(req: OnboardingRequest) -> UserProfile:
-    profile = UserProfile(
+    row = upsert_user(
         user_id=req.user_id,
-        risk_tolerance=req.risk_tolerance,
-        experience_level=req.experience_level,
-        portfolio_value=req.portfolio_value,
+        risk_score=req.risk_score,
+        horizon=req.horizon,
+        knowledge=req.knowledge,
     )
-    _profiles[req.user_id] = profile
-    return profile
+    return UserProfile(**row)
 
 
 def get_profile(user_id: str) -> UserProfile | None:
-    return _profiles.get(user_id)
+    row = get_user(user_id)
+    if not row:
+        return None
+    return UserProfile(**row)
 
 
 def append_chat(user_id: str, role: str, content: str) -> None:
-    _chat_history.setdefault(user_id, []).append({"role": role, "content": content})
+    append_conversation(user_id, "chat", role, content)
 
 
 def get_chat_history(user_id: str, limit: int = 20) -> list[dict]:
-    history = _chat_history.get(user_id, [])
-    return history[-limit:]
+    return get_conversation_history(user_id, "chat", limit=limit)

@@ -1,0 +1,80 @@
+"""Build user context string for injection into agent system prompts."""
+
+from __future__ import annotations
+
+from finly_agents.database import get_user, get_memories
+from finly_agents.portfolio import get_portfolio_summary
+
+HORIZON_LABELS = {
+    "short": "Short-term (< 6 months)",
+    "medium": "Medium-term (6 months – 2 years)",
+    "long": "Long-term (2+ years)",
+}
+
+KNOWLEDGE_LABELS = {
+    1: "Beginner — explain simply, avoid jargon",
+    2: "Intermediate — can handle standard financial concepts",
+    3: "Advanced — comfortable with technical analysis and complex instruments",
+}
+
+
+def build_user_context(user_id: str) -> str:
+    """Build a comprehensive user context string for agent prompts.
+
+    Includes risk profile, investment horizon, knowledge level,
+    portfolio holdings, investment goals, and stored memories.
+    """
+    user = get_user(user_id)
+    if not user:
+        return ""
+
+    risk = user.get("risk_score", 50)
+    horizon = user.get("horizon", "medium")
+    knowledge = user.get("knowledge", 1)
+    goals = user.get("goals_brief", "")
+
+    # Risk label
+    if risk <= 25:
+        risk_label = "Very Conservative"
+    elif risk <= 40:
+        risk_label = "Conservative"
+    elif risk <= 60:
+        risk_label = "Moderate"
+    elif risk <= 75:
+        risk_label = "Aggressive"
+    else:
+        risk_label = "Very Aggressive"
+
+    portfolio_summary = get_portfolio_summary(user_id)
+
+    memories = get_memories(user_id)
+    memory_lines = []
+    for m in memories:
+        if m["memory_key"] not in ("investment_goals",):  # avoid duplication with goals
+            memory_lines.append(f"- {m['memory_key']}: {m['memory_value']}")
+    memory_str = "\n".join(memory_lines) if memory_lines else "None"
+
+    context = f"""\
+INVESTOR PROFILE
+- Risk tolerance: {risk}/100 ({risk_label})
+- Investment horizon: {HORIZON_LABELS.get(horizon, horizon)}
+- Knowledge level: {knowledge}/3 ({KNOWLEDGE_LABELS.get(knowledge, 'Unknown')})
+
+INVESTMENT GOALS
+{goals or 'Not specified yet.'}
+
+CURRENT PORTFOLIO
+{portfolio_summary}
+
+USER PREFERENCES & MEMORIES
+{memory_str}
+
+INSTRUCTIONS FOR AGENTS
+- Tailor your analysis to this investor's risk tolerance and horizon.
+- If the user is conservative (risk < 40), emphasise capital preservation, downside risks, and stable returns.
+- If the user is aggressive (risk > 70), focus on growth opportunities and upside potential.
+- Adjust the complexity of your language to match the user's knowledge level.
+- Consider the user's existing portfolio when making recommendations (avoid over-concentration).
+- Reference any stored preferences or constraints from the user's memories.
+"""
+    return context.strip()

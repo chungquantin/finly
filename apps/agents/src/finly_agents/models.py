@@ -2,23 +2,74 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+
+# ---------------------------------------------------------------------------
+# User / Onboarding
+# ---------------------------------------------------------------------------
 
 class UserProfile(BaseModel):
     user_id: str
-    risk_tolerance: str = "moderate"  # conservative/moderate/aggressive
-    experience_level: str = "beginner"  # beginner/intermediate/advanced
-    portfolio_value: float = 0.0
-    preferred_tickers: list[str] = []
+    risk_score: int = Field(default=50, ge=0, le=100)
+    horizon: str = Field(default="medium", pattern="^(short|medium|long)$")
+    knowledge: int = Field(default=1, ge=1, le=3)
+    goals_brief: str = ""
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 class OnboardingRequest(BaseModel):
     user_id: str
-    risk_tolerance: str = "moderate"
-    experience_level: str = "beginner"
-    portfolio_value: float = 0.0
+    risk_score: int = Field(default=50, ge=0, le=100)
+    horizon: str = Field(default="medium", pattern="^(short|medium|long)$")
+    knowledge: int = Field(default=1, ge=1, le=3)
 
+
+# ---------------------------------------------------------------------------
+# Portfolio
+# ---------------------------------------------------------------------------
+
+class PortfolioItem(BaseModel):
+    asset_type: str = "stock"  # stock | crypto
+    ticker: str
+    quantity: float = 0
+    avg_cost: float = 0
+    wallet_address: str | None = None
+
+
+class PortfolioImportRequest(BaseModel):
+    user_id: str
+    mode: str = "manual"  # manual | mock | csv
+    items: list[PortfolioItem] = []
+    csv_data: str | None = None  # raw CSV string for csv mode
+
+
+class PortfolioResponse(BaseModel):
+    user_id: str
+    items: list[dict]
+
+
+# ---------------------------------------------------------------------------
+# Intake (conversational goal extraction)
+# ---------------------------------------------------------------------------
+
+class IntakeRequest(BaseModel):
+    user_id: str
+    message: str
+
+
+class IntakeResponse(BaseModel):
+    user_id: str
+    message: str  # assistant reply (question or final brief)
+    is_complete: bool = False  # true when intake is done
+    follow_up_count: int = 0  # how many follow-ups so far
+    goals_brief: str | None = None  # populated when is_complete=True
+
+
+# ---------------------------------------------------------------------------
+# Chat
+# ---------------------------------------------------------------------------
 
 class ChatRequest(BaseModel):
     user_id: str = "anonymous"
@@ -28,27 +79,84 @@ class ChatRequest(BaseModel):
 
 
 class SpecialistInsight(BaseModel):
-    role: str  # market_analyst, researcher, risk_assessor, portfolio_manager
+    role: str  # market_analyst, researcher, risk_assessor, portfolio_manager, sentiment_analyst
     summary: str
+    full_analysis: str = ""  # full reasoning from this agent
 
 
 class ChatResponse(BaseModel):
     ticker: str
     decision: str  # BUY/HOLD/SELL
-    summary: str  # concise plain-English recommendation
+    summary: str
     specialist_insights: list[SpecialistInsight]
-    full_report: str  # the complete final_trade_decision text
+    full_report: str
 
+
+# ---------------------------------------------------------------------------
+# Report
+# ---------------------------------------------------------------------------
+
+class ReportGenerateRequest(BaseModel):
+    user_id: str
+    ticker: str | None = None  # if None, inferred from intake brief or default
+
+
+class ReportResponse(BaseModel):
+    report_id: str
+    user_id: str
+    ticker: str
+    decision: str
+    summary: str
+    full_report: str
+    agent_reasoning: dict  # per-agent detailed reasoning
+    intake_brief: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Panel discussion (chat with team)
+# ---------------------------------------------------------------------------
+
+class PanelChatRequest(BaseModel):
+    user_id: str
+    message: str
+    report_id: str | None = None  # references a specific report
+
+
+class AgentPanelMessage(BaseModel):
+    agent_role: str
+    agent_name: str
+    response: str
+
+
+class PanelChatResponse(BaseModel):
+    user_id: str
+    question: str
+    agent_responses: list[AgentPanelMessage]
+    memory_updates: list[str] = []  # any preferences extracted from the question
+
+
+# ---------------------------------------------------------------------------
+# Report regeneration
+# ---------------------------------------------------------------------------
+
+class ReportRegenerateRequest(BaseModel):
+    user_id: str
+    report_id: str | None = None  # regenerate from latest if None
+
+
+# ---------------------------------------------------------------------------
+# Heartbeat (unchanged)
+# ---------------------------------------------------------------------------
 
 class HeartbeatAlert(BaseModel):
     alert_id: str
     timestamp: str
     ticker: str
-    alert_type: str  # price_drop, earnings_beat, sector_move
+    alert_type: str
     headline: str
     body: str
-    attributed_to: str  # which agent persona
-    severity: str  # info, warning, critical
+    attributed_to: str
+    severity: str
 
 
 class MarketTicker(BaseModel):
