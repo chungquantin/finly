@@ -1,6 +1,6 @@
 # Frontend
 
-Frontend guidance now targets the Lazy Investor hackathon MVP.
+Frontend guidance now targets the Finly hackathon MVP.
 
 ## Current Target Surface (Hackathon MVP)
 

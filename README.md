@@ -1,6 +1,6 @@
-# Lazy Investor
+# Finly
 
-Lazy Investor is an AI agentic investment team product being built for Lotus Hacks 2026 (March 20-22, Vietnam).
+Finly is an AI agentic investment team product being built for Lotus Hacks 2026 (March 20-22, Vietnam).
 
 The product direction is a voice-first advisory experience for beginner investors, combining:
 
@@ -21,7 +21,7 @@ The product direction is a voice-first advisory experience for beginner investor
   - Researcher
 - Market focus: Vietnamese stocks (initially VCB, VNM, TPB, FPT)
 
-See the PRD source of truth at `docs/product-specs/lazy-investor-agentic-investment-team-prd.md`.
+See the PRD source of truth at `docs/product-specs/finly-agentic-investment-team-prd.md`.
 
 ## Repository Purpose
 

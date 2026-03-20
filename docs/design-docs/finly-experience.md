@@ -1,8 +1,8 @@
-# Lazy Investor Experience Design
+# Finly Experience Design
 
 ## Context
 
-This document defines the UX and interaction model for the Lazy Investor PRD in `docs/product-specs/lazy-investor-agentic-investment-team-prd.md`.
+This document defines the UX and interaction model for the Finly PRD in `docs/product-specs/finly-agentic-investment-team-prd.md`.
 
 ## Experience Principles
 

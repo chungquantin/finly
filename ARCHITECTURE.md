@@ -1,6 +1,6 @@
 # Architecture
 
-This repository contains early implementation slices for the Lazy Investor product and remains governed by the harness architecture.
+This repository contains early implementation slices for the Finly product and remains governed by the harness architecture.
 
 ## Principles
 

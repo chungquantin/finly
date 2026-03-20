@@ -1,4 +1,4 @@
-# Product Requirements Document: Lazy Investor
+# Product Requirements Document: Finly
 
 ## Status
 
@@ -12,7 +12,7 @@ Draft (Hackathon MVP)
 
 ## Executive Summary
 
-Lazy Investor is a conversational, voice-powered investment advisory app with a 4-agent AI team:
+Finly is a conversational, voice-powered investment advisory app with a 4-agent AI team:
 
 - Portfolio Manager
 - Market Analyst
