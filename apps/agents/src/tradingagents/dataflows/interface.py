@@ -63,6 +63,7 @@ TOOLS_CATEGORIES = {
 VENDOR_LIST = [
     "yfinance",
     "alpha_vantage",
+    "mock_vn",
 ]
 
 # Mapping of methods to their vendor-specific implementations
@@ -133,6 +134,14 @@ def get_vendor(category: str, method: str = None) -> str:
 
 def route_to_vendor(method: str, *args, **kwargs):
     """Route method calls to appropriate vendor implementation with fallback support."""
+    # Vietnamese ticker mock data interception
+    from finly_agents.mock_data import is_vn_ticker
+    if args and isinstance(args[0], str) and is_vn_ticker(args[0]):
+        from finly_agents import mock_data
+        mock_fn = getattr(mock_data, f"{method}_mock", None)
+        if mock_fn:
+            return mock_fn(*args, **kwargs)
+
     category = get_category_for_method(method)
     vendor_config = get_vendor(category, method)
     primary_vendors = [v.strip() for v in vendor_config.split(',')]
