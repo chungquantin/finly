@@ -11,6 +11,7 @@ Use the index there to track:
 
 Start with:
 
+- `lazy-investor-experience.md` for the current product UX architecture
 - `harness-template.md` for the repository operating model
 - `harness-engineering-guide.md` for stack defaults and setup policy
 - `core-beliefs.md` for the shortest statement of working principles

@@ -1,6 +1,6 @@
 # Architecture
 
-This repository now contains an initial iOS product slice and remains governed by the harness architecture for future expansion.
+This repository contains early implementation slices for the Lazy Investor product and remains governed by the harness architecture.
 
 ## Principles
 
@@ -15,30 +15,32 @@ This repository now contains an initial iOS product slice and remains governed b
    Stores the product, design, planning, quality, reliability, and security knowledge base.
 2. `scripts/`
    Stores mechanical checks and repository automation.
-3. `apps/ios/`
-   Stores the iOS SwiftUI application scaffold for the AI fund launch flow.
-4. `templates/`
-   Stores deterministic bootstrap templates (`web-nextjs`, `ios-swiftui`) used by `scripts/bootstrap_codebase.py`.
-5. `.github/workflows/`
+3. `apps/mobile/`
+   Stores the mobile prototype surface.
+4. `apps/agents/`
+   Stores the local Python TradingAgents-style scaffold used for specialized investment agents.
+5. `templates/`
+   Stores deterministic bootstrap templates (`web-nextjs`, `mobile-react-native`) used by `scripts/bootstrap_codebase.py`.
+6. `.github/workflows/`
    Stores CI enforcement for repository invariants.
-6. `.agents/skills/`
+7. `.agents/skills/`
    Stores repository-local agent skills for recurring workflows such as setup and git operations.
 
 ## Planned Evolution
 
-When application code is introduced, extend this file with:
+When the hackathon build is stabilized, extend this file with:
 
-- Domain boundaries
-- Package or app layout
-- Allowed dependency directions
-- Cross-cutting concerns and where they enter the system
-- Test strategy by layer
+- Hard boundaries between voice client, orchestration API, and agent runtime
+- Allowed dependency directions between UI, backend, and simulation modules
+- Runtime observability and error handling contracts
+- Test strategy by layer and by demo-critical flow
 
-Current default assumption: the repository stays compatible with a mixed-language monorepo and grows with explicit boundaries:
+## Target Runtime Shape (PRD-Aligned)
 
-- iOS app in `apps/ios/`
-- Python agent server in `python/` (planned)
-- Shared documentation and plans in `docs/`
+- Frontend: React + Tailwind UI with Agora Web voice integration (hackathon target)
+- Backend API: Node.js + Express orchestration layer (planned)
+- Agent runtime: Multi-agent LLM orchestration for Portfolio Manager, Market Analyst, Risk Assessor, Researcher
+- Data: Mock market engine and mock portfolio state for demo safety and speed
 
 See `docs/design-docs/harness-engineering-guide.md` for the default stack policy and setup expectations.
 

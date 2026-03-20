@@ -1,5 +1,7 @@
 # iOS AI Fund Flow UI
 
+Status: Superseded by `lazy-investor-experience.md` (2026-03-19)
+
 ## Context
 
 This document defines the first iOS UI implementation for the AI fund launch experience specified in `docs/product-specs/ai-fund-team-launch-flow.md`.

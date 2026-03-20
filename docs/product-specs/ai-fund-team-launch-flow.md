@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft
+Superseded by `lazy-investor-agentic-investment-team-prd.md` (2026-03-19)
 
 ## Objective
 

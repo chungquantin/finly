@@ -1,33 +1,40 @@
 # Frontend
 
-Frontend guidance is intentionally minimal until a concrete client stack exists.
+Frontend guidance now targets the Lazy Investor hackathon MVP.
 
-For web frontends, use the default web stack from `docs/design-docs/harness-engineering-guide.md`:
+## Current Target Surface (Hackathon MVP)
 
-- Next.js
 - React
 - TypeScript
 - Tailwind CSS
-- shadcn/ui
-- Supabase
-- tRPC
-- Zustand
-- WorkOS
+- Agora Web SDK for voice
 
-For mobile frontends, use the default iOS stack profile:
+Use a responsive single-page flow for:
 
-- Swift
-- SwiftUI
-- XcodeGen
+1. Onboarding
+2. Team chat transcript
+3. Arena battle
+4. Quest flow
+5. Leaderboard
 
-When bootstrapping a new repo-owned web frontend, prefer the deterministic `web-nextjs` template driven by `scripts/bootstrap_codebase.py` before falling back to external scaffolding commands.
+## Voice UX Baseline
 
-When bootstrapping a new repo-owned iOS frontend, prefer the deterministic `ios-swiftui` template driven by `scripts/bootstrap_codebase.py`.
+- Always provide text fallback when voice fails
+- Show explicit state transitions (`listening`, `processing`, `speaking`, `fallback`)
+- Track latency targets (voice interaction <2s, full 4-agent response <3s)
 
-When a frontend is introduced, document:
+## Data Visualization Baseline
 
-- UI architecture
-- Design system constraints
-- Accessibility requirements
-- Test and validation strategy
-- Agent-operable browser workflows
+- Keep charts simple and interpretable (battle portfolio growth bars, clash score meter)
+- Prioritize clarity over dense analytics
+
+## Accessibility Baseline
+
+- Text equivalents for all voice outputs
+- High contrast defaults
+- Large tap/click targets
+- Keyboard-navigable primary actions
+
+## Bootstrap Notes
+
+When bootstrapping repo-owned web surfaces, prefer deterministic templates via `scripts/bootstrap_codebase.py` (`web-nextjs`) before external scaffolding.

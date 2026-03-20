@@ -2,4 +2,5 @@
 
 | Spec | Status | Notes |
 | --- | --- | --- |
-| `ai-fund-team-launch-flow.md` | draft | Initial iOS user flow for launching and interacting with an AI investment fund team |
+| `lazy-investor-agentic-investment-team-prd.md` | draft | Lotus Hacks 2026 PRD for voice-first multi-agent investing with Arena gamification |
+| `ai-fund-team-launch-flow.md` | superseded | Earlier iOS-first flow, retained for history only |
