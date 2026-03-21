@@ -10,7 +10,6 @@ import type {
   ApiConfig,
   ChatRequest,
   ChatResponse,
-  HeartbeatAlert,
   IntakeRequest,
   IntakeResponse,
   IntakeStreamEvent,
@@ -505,23 +504,6 @@ export class Api {
     return { kind: "ok", data: response.data! }
   }
 
-  // -----------------------------------------------------------------------
-  // Heartbeat alerts
-  // -----------------------------------------------------------------------
-
-  async getHeartbeatAlerts(
-    userId: string,
-  ): Promise<{ kind: "ok"; data: HeartbeatAlert[] } | GeneralApiProblem> {
-    const response: ApiResponse<HeartbeatAlert[]> = await this.apisauce.get(
-      "/api/heartbeat/alerts",
-      { user_id: userId },
-    )
-    if (!response.ok) {
-      const problem = getGeneralApiProblem(response)
-      if (problem) return problem
-    }
-    return { kind: "ok", data: response.data ?? [] }
-  }
 }
 
 // Singleton instance
