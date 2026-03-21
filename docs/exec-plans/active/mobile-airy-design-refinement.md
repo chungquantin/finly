@@ -63,6 +63,8 @@ Current screens are functional but visually dense and inconsistent with the requ
 - 2026-03-21: Expanded the `home` tab's "Your Team" section from a two-column card grid to full-width stacked cards with stronger hierarchy, larger message text, and clearer metadata for easier mobile scanning.
 - 2026-03-21: Pulled the `home` tab's "Your Team" module out of the main portfolio container into an absolute full-width bottom sheet with a pull-up/full-screen expanded state and independent agent-list scrolling.
 - 2026-03-21: Replaced the static team-sheet toggle with a draggable snap header and added elevated shadow styling so the sheet reads and behaves like a floating layer.
+- 2026-03-21: Added a lightweight portfolio growth chart card to the `home` tab between the holdings summary and token list, using inline view-based chart segments to avoid introducing a separate chart dependency.
+- 2026-03-21: Added an investment profile card to the `home` tab using persisted onboarding state so risk level, horizon, knowledge, and portfolio type are visible without opening Settings.
 
 ## Verification
 
@@ -79,6 +81,7 @@ Current screens are functional but visually dense and inconsistent with the requ
   - `pnpm -C apps/mobile run compile`
   - `pnpm -C apps/mobile exec eslint --fix src/components/Text.tsx app/(tabs)/board.tsx app/(tabs)/portfolio.tsx app/(tabs)/home.tsx app/(tabs)/settings.tsx src/components/IosHeader.tsx app/(tabs)/_layout.tsx src/theme/colors.ts src/theme/typography.ts`
   - `pnpm -C apps/mobile exec eslint src/components/Text.tsx app/(tabs)/board.tsx app/(tabs)/portfolio.tsx app/(tabs)/home.tsx app/(tabs)/settings.tsx src/components/IosHeader.tsx app/(tabs)/_layout.tsx src/theme/colors.ts src/theme/typography.ts`
+  - `pnpm -C apps/mobile exec eslint app/(tabs)/home.tsx`
   - `pnpm -C apps/mobile exec eslint app/(tabs)/home.tsx`
 - `python3 scripts/check_harness_readiness.py`
 - Manual checks:

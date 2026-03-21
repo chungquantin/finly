@@ -25,6 +25,7 @@ const avatarEmojis = ["😀", "😎", "🥳", "🦄", "🌈", "🚀", "🧠", "�
 const BORDER = "#EEF2F7"
 const COLLAPSED_VISIBLE_HEIGHT = 228
 const SNAP_THRESHOLD = 96
+const PORTFOLIO_GROWTH_POINTS = [18, 24, 22, 31, 29, 37, 42, 40, 49, 58, 55, 64] as const
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-US", {
@@ -39,6 +40,10 @@ export default function HomeTab() {
   const { height } = useWindowDimensions()
   const [isTeamExpanded, setIsTeamExpanded] = useState(false)
   const investorName = useOnboardingStore((state) => state.name).trim() || "finlyinvestor"
+  const riskExpertise = useOnboardingStore((state) => state.riskExpertise)
+  const investmentHorizon = useOnboardingStore((state) => state.investmentHorizon)
+  const financialKnowledge = useOnboardingStore((state) => state.financialKnowledge)
+  const portfolioType = useOnboardingStore((state) => state.portfolioType)
   const avatarEmoji = useMemo(
     () => avatarEmojis[Math.floor(Math.random() * avatarEmojis.length)],
     [],
@@ -161,6 +166,19 @@ export default function HomeTab() {
                   from={{ opacity: 0, translateY: 16 }}
                   transition={{ delay: 140, duration: 420, type: "timing" }}
                 >
+                  <InvestmentProfileCard
+                    financialKnowledge={financialKnowledge}
+                    investmentHorizon={investmentHorizon}
+                    portfolioType={portfolioType}
+                    riskExpertise={riskExpertise}
+                  />
+                </MotiView>
+
+                <MotiView
+                  animate={{ opacity: 1, translateY: 0 }}
+                  from={{ opacity: 0, translateY: 16 }}
+                  transition={{ delay: 180, duration: 420, type: "timing" }}
+                >
                   <View
                     className="mt-8 flex-row items-end justify-between border-b pb-4"
                     style={{ borderColor: BORDER }}
@@ -183,6 +201,14 @@ export default function HomeTab() {
                   animate={{ opacity: 1, translateY: 0 }}
                   from={{ opacity: 0, translateY: 16 }}
                   transition={{ delay: 220, duration: 420, type: "timing" }}
+                >
+                  <PortfolioGrowthChart />
+                </MotiView>
+
+                <MotiView
+                  animate={{ opacity: 1, translateY: 0 }}
+                  from={{ opacity: 0, translateY: 16 }}
+                  transition={{ delay: 280, duration: 420, type: "timing" }}
                 >
                   <View className="mt-1">
                     {enrichedHoldings.map((holding) => (
@@ -272,6 +298,118 @@ export default function HomeTab() {
         </Animated.View>
       </View>
     </SafeAreaView>
+  )
+}
+
+function InvestmentProfileCard({
+  financialKnowledge,
+  investmentHorizon,
+  portfolioType,
+  riskExpertise,
+}: {
+  financialKnowledge: ReturnType<typeof useOnboardingStore.getState>["financialKnowledge"]
+  investmentHorizon: ReturnType<typeof useOnboardingStore.getState>["investmentHorizon"]
+  portfolioType: ReturnType<typeof useOnboardingStore.getState>["portfolioType"]
+  riskExpertise: ReturnType<typeof useOnboardingStore.getState>["riskExpertise"]
+}) {
+  return (
+    <View
+      className="mt-6 rounded-[28px] border bg-[#F7FAFF] px-4 py-4"
+      style={{ borderColor: BORDER }}
+    >
+      <View className="flex-row items-center justify-between">
+        <Text className="font-sans text-[17px] font-semibold text-[#0F1728]">
+          Investment profile
+        </Text>
+        <View className="rounded-full bg-[#EAF1FF] px-3 py-1.5">
+          <Text className="font-sans text-[12px] font-medium text-[#2453FF]">
+            {profileTypeLabel(portfolioType)}
+          </Text>
+        </View>
+      </View>
+
+      <View className="mt-4 flex-row flex-wrap">
+        <ProfilePill label="Risk" value={titleCase(riskExpertise)} />
+        <ProfilePill label="Horizon" value={horizonLabel(investmentHorizon)} />
+        <ProfilePill label="Knowledge" value={knowledgeLabel(financialKnowledge)} />
+      </View>
+    </View>
+  )
+}
+
+function PortfolioGrowthChart() {
+  const points = useMemo(() => createChartPoints(PORTFOLIO_GROWTH_POINTS, 272, 112), [])
+  const lastPoint = points[points.length - 1]
+
+  return (
+    <View
+      className="mt-5 rounded-[30px] border bg-[#F7FAFF] px-4 py-4"
+      style={{ borderColor: BORDER }}
+    >
+      <View className="flex-row items-start justify-between">
+        <View>
+          <Text className="font-sans text-[17px] font-semibold text-[#0F1728]">
+            Portfolio growth
+          </Text>
+          <Text className="mt-1 font-sans text-[14px] text-[#7A8699]">Last 30 days</Text>
+        </View>
+        <View className="items-end">
+          <Text className="font-sans text-[16px] font-semibold text-[#22B45A]">
+            +{portfolioSnapshot.monthlyPnlPercent}%
+          </Text>
+          <Text className="mt-1 font-sans text-[13px] text-[#7A8699]">
+            +{money(portfolioSnapshot.dailyPnlUsd)} today
+          </Text>
+        </View>
+      </View>
+
+      <View className="mt-4 h-[128px] overflow-hidden rounded-[24px] bg-white px-3 py-3">
+        <View className="absolute inset-x-3 top-4 h-px bg-[#EEF2F7]" />
+        <View className="absolute inset-x-3 top-[44px] h-px bg-[#EEF2F7]" />
+        <View className="absolute inset-x-3 top-[84px] h-px bg-[#EEF2F7]" />
+
+        <View className="h-full">
+          {points.slice(0, -1).map((point, index) => (
+            <View
+              key={`segment-${point.x}`}
+              className="absolute left-0 top-0 rounded-full bg-[#2453FF]"
+              style={segmentStyle(point, points[index + 1])}
+            />
+          ))}
+
+          {points.map((point, index) => (
+            <View
+              key={`point-${point.x}`}
+              className={`absolute rounded-full border-2 border-white ${index === points.length - 1 ? "h-4 w-4 bg-[#91FF66]" : "h-3 w-3 bg-[#2453FF]"}`}
+              style={{
+                left: point.x - (index === points.length - 1 ? 8 : 6),
+                top: point.y - (index === points.length - 1 ? 8 : 6),
+              }}
+            />
+          ))}
+
+          <View
+            className="absolute rounded-[18px] bg-[#0F1728] px-2.5 py-1"
+            style={{ left: Math.max(lastPoint.x - 58, 8), top: Math.max(lastPoint.y - 44, 0) }}
+          >
+            <Text className="font-sans text-[11px] font-medium text-white">
+              {money(portfolioSnapshot.totalValueUsd)}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  )
+}
+
+function ProfilePill({ label, value }: { label: string; value: string }) {
+  return (
+    <View className="mb-2 mr-2 rounded-[20px] bg-white px-3 py-2">
+      <Text className="font-sans text-[11px] font-medium uppercase tracking-[0.8px] text-[#7A8699]">
+        {label}
+      </Text>
+      <Text className="mt-1 font-sans text-[14px] font-semibold text-[#0F1728]">{value}</Text>
+    </View>
   )
 }
 
@@ -408,8 +546,73 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
 }
 
+function titleCase(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+function horizonLabel(value: "short" | "medium" | "long") {
+  switch (value) {
+    case "short":
+      return "Short term"
+    case "medium":
+      return "Mid term"
+    default:
+      return "Long term"
+  }
+}
+
+function knowledgeLabel(value: "novice" | "savvy" | "pro") {
+  switch (value) {
+    case "novice":
+      return "Novice"
+    case "savvy":
+      return "Savvy"
+    default:
+      return "Pro"
+  }
+}
+
+function profileTypeLabel(value: "crypto" | "stock" | null) {
+  switch (value) {
+    case "crypto":
+      return "Crypto investor"
+    case "stock":
+      return "Stock investor"
+    default:
+      return "Profile set"
+  }
+}
+
+function createChartPoints(values: readonly number[], width: number, height: number) {
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = Math.max(max - min, 1)
+
+  return values.map((value, index) => ({
+    x: (index / (values.length - 1)) * width,
+    y: height - ((value - min) / range) * height,
+  }))
+}
+
+function segmentStyle(start: { x: number; y: number }, end: { x: number; y: number }) {
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+  const length = Math.sqrt(dx * dx + dy * dy)
+  const angle = `${(Math.atan2(dy, dx) * 180) / Math.PI}deg`
+  const midpointX = (start.x + end.x) / 2
+  const midpointY = (start.y + end.y) / 2
+
+  return {
+    height: 4,
+    left: midpointX - length / 2,
+    top: midpointY - 2,
+    transform: [{ rotate: angle }],
+    width: length,
+  }
+}
+
 const $scrollContent = {
-  paddingBottom: 430,
+  paddingBottom: 220,
   paddingHorizontal: 14,
   paddingTop: 10,
 }
