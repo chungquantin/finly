@@ -18,12 +18,13 @@ import { MotiView } from "moti"
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { HoldingRow } from "@/components/HoldingRow"
+import { api } from "@/services/api"
 import { useMarketData } from "@/services/marketData"
 import { usePortfolioGrowthHistory } from "@/services/portfolioHistory"
 import { useOnboardingStore } from "@/stores/onboardingStore"
 import { getRandomAgentAvatar } from "@/utils/agentAvatars"
 import { getInvestorAvatarEmoji } from "@/utils/investorAvatar"
-import { boardMessages, teamAgents } from "@/utils/mockAppData"
+import { teamAgents } from "@/utils/mockAppData"
 import { useSelectedPortfolioData } from "@/utils/selectedPortfolio"
 
 const BORDER = "#C7D0DC"
@@ -43,6 +44,9 @@ export default function HomeTab() {
   const insets = useSafeAreaInsets()
   const { height } = useWindowDimensions()
   const [isTeamExpanded, setIsTeamExpanded] = useState(false)
+  const [advisorNewsSummary, setAdvisorNewsSummary] = useState(
+    "Today's holdings headlines are loading.",
+  )
   const investorName = useOnboardingStore((state) => state.name).trim() || "Investor"
   const riskExpertise = useOnboardingStore((state) => state.riskExpertise)
   const investmentHorizon = useOnboardingStore((state) => state.investmentHorizon)
@@ -66,14 +70,6 @@ export default function HomeTab() {
       }),
     [holdings, quotes],
   )
-  const latestAgentMessages = useMemo(() => {
-    return boardMessages.reduce<Record<string, string>>((acc, message) => {
-      if (message.role !== "user" && !acc[message.author]) {
-        acc[message.author] = message.message
-      }
-      return acc
-    }, {})
-  }, [])
   const totalValueUsd = useMemo(
     () => enrichedHoldings.reduce((sum, holding) => sum + holding.valueUsd, 0),
     [enrichedHoldings],
@@ -83,6 +79,54 @@ export default function HomeTab() {
   const expandedHeight = Math.max(height - insets.top - 12, COLLAPSED_VISIBLE_HEIGHT)
   const sheetHeight = useRef(new Animated.Value(COLLAPSED_VISIBLE_HEIGHT)).current
   const dragStartHeightRef = useRef(COLLAPSED_VISIBLE_HEIGHT)
+
+  useEffect(() => {
+    let active = true
+
+    const run = async () => {
+      const tickers = holdings
+        .map((holding) => holding.ticker.trim().toUpperCase())
+        .filter((ticker) => ticker.length > 0)
+      if (tickers.length === 0) {
+        if (active) {
+          setAdvisorNewsSummary(
+            "No current holdings yet, so there are no holdings headlines today.",
+          )
+        }
+        return
+      }
+
+      const todayIso = new Date().toISOString().slice(0, 10)
+      const headlineRows = await Promise.all(
+        tickers.map(async (ticker) => {
+          const result = await api.getTickerNews(ticker, 3, 1)
+          if (result.kind !== "ok") {
+            return `${ticker}: no reliable news source response today`
+          }
+          const items = result.news.items
+          const todayItem =
+            items.find((item) => item.published_at.slice(0, 10) === todayIso) ?? items[0]
+          if (!todayItem) {
+            return `${ticker}: no major headline today`
+          }
+          return `${ticker}: ${shortHeadline(todayItem.title)}`
+        }),
+      )
+
+      if (!active) return
+      setAdvisorNewsSummary(`Today's holdings news - ${headlineRows.join(" | ")}`)
+    }
+
+    run()
+
+    return () => {
+      active = false
+    }
+  }, [holdings])
+
+  const latestAgentMessages = useMemo(() => {
+    return buildTeamInsights(enrichedHoldings, totalValueUsd, advisorNewsSummary)
+  }, [advisorNewsSummary, enrichedHoldings, totalValueUsd])
 
   const snapTo = useCallback(
     (expanded: boolean) => {
@@ -307,9 +351,7 @@ export default function HomeTab() {
                     <AgentCard
                       key={agent.id}
                       agent={agent}
-                      recentMessage={
-                        latestAgentMessages[agent.name] ?? "Monitoring the market now."
-                      }
+                      recentMessage={latestAgentMessages[agent.name] ?? "Monitoring the portfolio."}
                       onPress={() => router.push(`/agent/${agent.id}`)}
                     />
                   ))}
@@ -622,6 +664,44 @@ function statusDotClassName(status: (typeof teamAgents)[number]["status"]) {
       return "bg-[#F58A24]"
     default:
       return "bg-[#9CA3AF]"
+  }
+}
+
+function shortHeadline(title: string) {
+  const normalized = title.replace(/\s+/g, " ").trim()
+  if (normalized.length <= 66) return normalized
+  return `${normalized.slice(0, 63)}...`
+}
+
+function buildTeamInsights(
+  holdings: Array<{ ticker: string; valueUsd: number; changePercent: number }>,
+  totalValueUsd: number,
+  advisorNewsSummary: string,
+) {
+  if (holdings.length === 0) {
+    return {
+      Avery:
+        "Portfolio is currently in cash. Start with broad diversification and staggered entries.",
+      Kai: "No holdings yet, so market-regime guidance is to wait for quality setups and avoid impulse entries.",
+      Noor: "When first positions are opened, use small tranches and clear stop levels to control early risk.",
+      Milo: "Build a starter watchlist and track catalysts before concentrating into any single theme.",
+    }
+  }
+
+  const sorted = [...holdings].sort((a, b) => b.valueUsd - a.valueUsd)
+  const topHolding = sorted[0]
+  const weightedMove =
+    holdings.reduce((sum, holding) => sum + holding.changePercent * holding.valueUsd, 0) /
+    Math.max(totalValueUsd, 1)
+  const bestHolding = [...holdings].sort((a, b) => b.changePercent - a.changePercent)[0]
+  const weakestHolding = [...holdings].sort((a, b) => a.changePercent - b.changePercent)[0]
+  const regime = weightedMove > 0.5 ? "constructive" : weightedMove < -0.5 ? "defensive" : "mixed"
+
+  return {
+    Avery: `Overall portfolio is ${regime} across ${holdings.length} holdings with largest weight in ${topHolding.ticker}. ${advisorNewsSummary}`,
+    Kai: `Portfolio breadth is ${regime}: relative strength is led by ${bestHolding.ticker} while ${weakestHolding.ticker} lags. Keep feedback at portfolio level and avoid concentration drift.`,
+    Noor: `Execution feedback: treat current holdings as one basket, scale adds/trims in clips, and keep risk controls tighter on weaker names like ${weakestHolding.ticker}.`,
+    Milo: `Across current holdings, fundamentals stay mixed; prioritize catalyst checks on your largest positions, especially ${topHolding.ticker}, before changing sizing.`,
   }
 }
 

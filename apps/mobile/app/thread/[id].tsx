@@ -79,7 +79,7 @@ const agentIdentityByRole: Record<string, string> = {
   "trader": "Avery - Trader",
   "advisor": "Avery - Advisor",
   "risk assessor": "Noor - Trader",
-  "portfolio manager": "Avery - Portfolio Manager",
+  "portfolio manager": "Avery - Advisor",
 }
 
 export default function ThreadDetailRoute() {

@@ -222,6 +222,14 @@ class TickerNewsResponse(BaseModel):
     source: str
     items: list[TickerNewsItem] = []
 
+class TickerNewsInsightRequest(BaseModel):
+    ticker: str
+    title: str
+    summary: str = ""
+    url: str = ""
+    source: str = ""
+    published_at: str = ""
+
 
 # ---------------------------------------------------------------------------
 # Voice onboarding

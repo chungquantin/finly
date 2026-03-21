@@ -31,6 +31,8 @@ import type {
   VoiceOnboardingResponse,
   VoiceOnboardingStreamEvent,
   TickerNewsResponse,
+  TickerNewsInsightRequest,
+  TickerNewsInsightStreamEvent,
   HeartbeatRuleResponse,
   HeartbeatResultResponse,
 } from "./types"
@@ -324,6 +326,54 @@ export class Api {
     return {
       kind: "ok",
       news: response.data ?? { ticker, source: "none", items: [] },
+    }
+  }
+
+  async streamTickerNewsInsight(
+    req: TickerNewsInsightRequest,
+    onEvent: (event: TickerNewsInsightStreamEvent) => void,
+  ): Promise<{ kind: "ok" } | GeneralApiProblem> {
+    try {
+      const url = `${this.config.url}/api/ticker-news/insight/stream`
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Accept": "text/event-stream",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(req),
+      })
+
+      if (!response.ok) return { kind: "bad-data" }
+      if (!response.body) return { kind: "bad-data" }
+
+      const decoder = new TextDecoder()
+      const reader = response.body.getReader()
+      let buffer = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? ""
+
+        for (const raw of lines) {
+          const line = raw.trim()
+          if (!line.startsWith("data:")) continue
+          const payload = line.slice(5).trim()
+          if (!payload || payload === "[DONE]") continue
+          try {
+            onEvent(JSON.parse(payload) as TickerNewsInsightStreamEvent)
+          } catch {
+            // Ignore malformed SSE payloads.
+          }
+        }
+      }
+
+      return { kind: "ok" }
+    } catch {
+      return { kind: "cannot-connect", temporary: true }
     }
   }
 

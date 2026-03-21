@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { IosHeader } from "@/components/IosHeader"
 import { TickerLogo } from "@/components/TickerLogo"
 import { api } from "@/services/api"
-import type { TickerNewsItem } from "@/services/api/types"
+import type { TickerNewsInsightStreamEvent, TickerNewsItem } from "@/services/api/types"
 import { useAgentBoardStore } from "@/stores/agentBoardStore"
 import { holdingDecisions } from "@/utils/mockAppData"
 import { openLinkInBrowser } from "@/utils/openLinkInBrowser"
@@ -75,6 +75,9 @@ export default function HoldingDetailRoute() {
   const [newsItems, setNewsItems] = useState<TickerNewsItem[]>([])
   const [newsSource, setNewsSource] = useState<string>("")
   const [newsLoading, setNewsLoading] = useState(false)
+  const [newsInsight, setNewsInsight] = useState("")
+  const [newsInsightAgent, setNewsInsightAgent] = useState("Advisor")
+  const [newsInsightLoading, setNewsInsightLoading] = useState(false)
 
   useEffect(() => {
     if (!holding?.ticker) return
@@ -82,15 +85,65 @@ export default function HoldingDetailRoute() {
 
     const loadTickerNews = async () => {
       setNewsLoading(true)
+      setNewsInsight("")
+      setNewsInsightAgent("Advisor")
+      setNewsInsightLoading(false)
       const result = await api.getTickerNews(holding.ticker, 6, 7)
       if (cancelled) return
 
       if (result.kind === "ok") {
         setNewsItems(result.news.items)
         setNewsSource(result.news.source.toUpperCase())
+        const topItem = result.news.items[0]
+        if (topItem) {
+          setNewsInsightLoading(true)
+          const streamResult = await api.streamTickerNewsInsight(
+            {
+              ticker: holding.ticker,
+              title: topItem.title,
+              summary: topItem.summary,
+              url: topItem.url,
+              source: topItem.source,
+              published_at: topItem.published_at,
+            },
+            (event: TickerNewsInsightStreamEvent) => {
+              if (cancelled) return
+              if (event.agent_name) {
+                setNewsInsightAgent(event.agent_name)
+              }
+              if (event.type === "started") {
+                if (event.agent_name) setNewsInsightAgent(event.agent_name)
+              } else if (event.type === "agent_message_start") {
+                if (event.message?.agent_name) setNewsInsightAgent(event.message.agent_name)
+                setNewsInsight("")
+              } else if (event.type === "agent_message_delta") {
+                const delta = event.delta ?? ""
+                if (delta) {
+                  setNewsInsight((prev) => prev + delta)
+                }
+              } else if (event.type === "agent_message_done") {
+                const finalText = event.message?.response ?? ""
+                if (finalText) {
+                  setNewsInsight(finalText)
+                }
+                setNewsInsightLoading(false)
+              } else if (event.type === "done" || event.type === "error") {
+                setNewsInsightLoading(false)
+              }
+            },
+          )
+          if (!cancelled && streamResult.kind !== "ok") {
+            setNewsInsightLoading(false)
+            setNewsInsight(
+              "Insight is temporarily unavailable. Review the top headline and wait for the next update.",
+            )
+          }
+        }
       } else {
         setNewsItems([])
         setNewsSource("")
+        setNewsInsight("")
+        setNewsInsightLoading(false)
       }
       setNewsLoading(false)
     }
@@ -289,6 +342,26 @@ export default function HoldingDetailRoute() {
                   <View className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3">
                     <Text className="font-sans text-[14px] text-[#7A8699]">
                       No recent news found for this ticker.
+                    </Text>
+                  </View>
+                ) : null}
+
+                {!newsLoading && newsItems.length ? (
+                  <View className="rounded-[18px] border border-[#DCE6FF] bg-[#F7F9FF] px-4 py-3">
+                    <View className="flex-row items-center justify-between">
+                      <Text className="font-sans text-[15px] font-semibold text-[#0F1728]">
+                        Finly insight
+                      </Text>
+                      <View className="rounded-full bg-[#EAF1FF] px-3 py-1">
+                        <Text className="font-sans text-[12px] font-semibold text-[#2453FF]">
+                          {newsInsightAgent}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text className="mt-2 font-sans text-[14px] leading-6 text-[#425168]">
+                      {newsInsightLoading && !newsInsight
+                        ? "Generating insight..."
+                        : newsInsight || "No insight generated yet."}
                     </Text>
                   </View>
                 ) : null}

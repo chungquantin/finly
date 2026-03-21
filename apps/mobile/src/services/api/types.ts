@@ -107,6 +107,29 @@ export interface TickerNewsResponse {
   items: TickerNewsItem[]
 }
 
+export interface TickerNewsInsightRequest {
+  ticker: string
+  title: string
+  summary?: string
+  url?: string
+  source?: string
+  published_at?: string
+}
+
+export interface TickerNewsInsightStreamEvent {
+  type:
+    | "started"
+    | "agent_message_start"
+    | "agent_message_delta"
+    | "agent_message_done"
+    | "error"
+    | "done"
+  agent_role?: string
+  agent_name?: string
+  message?: AgentPanelMessage
+  delta?: string
+}
+
 // ---------------------------------------------------------------------------
 // Intake (conversational goal extraction)
 // ---------------------------------------------------------------------------

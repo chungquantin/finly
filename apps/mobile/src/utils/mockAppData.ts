@@ -83,7 +83,7 @@ export const teamAgents: TeamAgent[] = [
     id: "portfolio-manager",
     name: "Avery",
     avatar: "AV",
-    role: "Portfolio Manager",
+    role: "Advisor",
     specialty: "Allocation and execution plan",
     bio: "Avery translates team research into a portfolio plan, balancing conviction, sizing, and timing so the portfolio stays aligned with the user's target risk.",
     mandate:
