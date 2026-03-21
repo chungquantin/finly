@@ -12,7 +12,6 @@ type HoldingRowProps = {
   allocationPercent: number
   changePercent: number
   onPress: () => void
-  onViewBoard?: () => void
   borderColor?: string
 }
 
@@ -25,7 +24,6 @@ export function HoldingRow({
   allocationPercent,
   changePercent,
   onPress,
-  onViewBoard,
   borderColor = "#EDEFF4",
 }: HoldingRowProps) {
   return (
@@ -58,19 +56,6 @@ export function HoldingRow({
           {changePercent >= 0 ? "+" : ""}
           {changePercent}%
         </Text>
-        {onViewBoard ? (
-          <Pressable
-            className="mt-2 rounded-full bg-[#B9C7EA] px-3 py-1.5"
-            style={({ pressed }) => [{ opacity: pressed ? 0.82 : 1 }]}
-            onPress={(event) => {
-              // Keep nested CTA from triggering row navigation.
-              event.stopPropagation?.()
-              onViewBoard()
-            }}
-          >
-            <Text className="font-sans text-[13px] font-semibold text-white">View board</Text>
-          </Pressable>
-        ) : null}
       </View>
     </Pressable>
   )

@@ -291,7 +291,6 @@ export default function HomeTab() {
                             }
                             changePercent={holding.changePercent}
                             onPress={() => router.push(`/holding/${holding.ticker}`)}
-                            onViewBoard={() => router.push(`/holding/${holding.ticker}`)}
                           />
                         ))}
                   </View>

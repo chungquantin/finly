@@ -160,37 +160,8 @@ export default function PortfolioTab() {
         (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
       )
   }, [boardThreads, enrichedHoldings, quotes])
-  const latestHeldThreadIdByTicker = useMemo(() => {
-    const heldTickerSet = new Set(
-      enrichedHoldings.map((holding) => holding.ticker.trim().toUpperCase()),
-    )
-    const map = new Map<string, string>()
-
-    boardThreads
-      .filter((thread) => thread.ticker.trim().toUpperCase() !== "BOARD")
-      .sort(
-        (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
-      )
-      .forEach((thread) => {
-        const ticker = thread.ticker.trim().toUpperCase()
-        if (!ticker || !heldTickerSet.has(ticker) || map.has(ticker)) return
-        map.set(ticker, thread.id)
-      })
-
-    return map
-  }, [boardThreads, enrichedHoldings])
-
   const handleOpenTickerDetail = (ticker: string) => {
     const normalizedTicker = ticker.trim().toUpperCase()
-    router.push(`/holding/${normalizedTicker}`)
-  }
-  const handleOpenBoardForHolding = (ticker: string) => {
-    const normalizedTicker = ticker.trim().toUpperCase()
-    const threadId = latestHeldThreadIdByTicker.get(normalizedTicker)
-    if (threadId) {
-      router.push(`/thread/${threadId}`)
-      return
-    }
     router.push(`/holding/${normalizedTicker}`)
   }
 
@@ -306,7 +277,6 @@ export default function PortfolioTab() {
                         allocationPercent={holding.allocationPercent}
                         changePercent={holding.changePercent}
                         onPress={() => handleOpenTickerDetail(holding.ticker)}
-                        onViewBoard={() => handleOpenBoardForHolding(holding.ticker)}
                         borderColor={PORTFOLIO_BORDER}
                       />
                     ))}
@@ -366,7 +336,6 @@ export default function PortfolioTab() {
                     <Text className="mr-4 flex-1 font-sans text-[13px] text-[#7A8699]">
                       {item.summary}
                     </Text>
-                    <Text className="ml-2 font-sans text-[13px] text-[#2453FF]">View board</Text>
                   </View>
                   <Text className="mt-1 font-sans text-[13px] text-[#7A8699]">
                     Added from board thread
