@@ -189,3 +189,33 @@ class MarketTicker(BaseModel):
     price: float
     change_pct: float
     currency: str
+
+
+# ---------------------------------------------------------------------------
+# Voice onboarding
+# ---------------------------------------------------------------------------
+
+
+class VoiceOnboardingProfile(BaseModel):
+    name: str | None = None
+    risk: str | None = None  # beginner | intermediate | expert
+    horizon: str | None = None  # short | medium | long
+    knowledge: str | None = None  # novice | savvy | pro
+
+
+class VoiceOnboardingRequest(BaseModel):
+    user_id: str
+    message: str | None = None  # text message (if using text fallback)
+    audio_b64: str | None = None  # base64-encoded audio (for STT)
+    audio_content_type: str = "audio/m4a"  # mime type of the audio
+    is_initial: bool = False  # true to get the greeting without user input
+
+
+class VoiceOnboardingResponse(BaseModel):
+    user_id: str
+    message: str
+    audio_b64: str | None = None  # TTS response audio
+    is_complete: bool = False
+    turn_count: int = 0
+    profile: VoiceOnboardingProfile | None = None
+    transcript: str | None = None  # transcribed text from audio input

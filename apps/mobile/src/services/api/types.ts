@@ -225,6 +225,31 @@ export interface ReportRegenerateRequest {
 // Heartbeat
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Voice onboarding
+// ---------------------------------------------------------------------------
+
+export interface VoiceOnboardingProfile {
+  name: string | null
+  risk: "beginner" | "intermediate" | "expert" | null
+  horizon: "short" | "medium" | "long" | null
+  knowledge: "novice" | "savvy" | "pro" | null
+}
+
+export interface VoiceOnboardingResponse {
+  user_id: string
+  message: string
+  audio_b64: string | null
+  is_complete: boolean
+  turn_count: number
+  profile: VoiceOnboardingProfile | null
+  transcript: string | null
+}
+
+// ---------------------------------------------------------------------------
+// Heartbeat
+// ---------------------------------------------------------------------------
+
 export interface HeartbeatAlert {
   alert_id: string
   timestamp: string

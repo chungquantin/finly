@@ -18,7 +18,7 @@ from typing import Any
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -42,6 +42,9 @@ from finly_backend.models import (
     ReportRegenerateRequest,
     ReportResponse,
     SpecialistInsight,
+    VoiceOnboardingProfile,
+    VoiceOnboardingRequest,
+    VoiceOnboardingResponse,
 )
 from finly_backend.database import (
     init_db,
@@ -481,6 +484,148 @@ async def onboarding(req: OnboardingRequest) -> OnboardingResponse:
         resp.audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
 
     return resp
+
+
+# ---------------------------------------------------------------------------
+# Voice onboarding (conversational profile extraction)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/onboarding/voice")
+async def onboarding_voice(req: VoiceOnboardingRequest) -> VoiceOnboardingResponse:
+    """Conversational voice onboarding — extracts profile through natural dialogue.
+
+    Accepts either audio_b64 (transcribed via Whisper) or message (text fallback).
+    Set is_initial=true to get the greeting message without any user input.
+    """
+    import base64
+
+    from finly_backend.onboarding_chat import (
+        get_initial_greeting,
+        run_onboarding_chat,
+    )
+    from finly_backend.voice import text_to_speech, transcribe_audio
+
+    # Initial greeting — no user input needed
+    if req.is_initial:
+        greeting = get_initial_greeting()
+        audio_bytes = await text_to_speech(greeting)
+        audio_b64 = base64.b64encode(audio_bytes).decode("ascii") if audio_bytes else None
+        return VoiceOnboardingResponse(
+            user_id=req.user_id,
+            message=greeting,
+            audio_b64=audio_b64,
+            is_complete=False,
+            turn_count=0,
+        )
+
+    # Resolve user message: transcribe audio or use text
+    transcript = None
+    user_message = req.message
+
+    if req.audio_b64 and not req.message:
+        audio_bytes = base64.b64decode(req.audio_b64)
+        transcript = await transcribe_audio(audio_bytes, req.audio_content_type)
+        if not transcript:
+            return VoiceOnboardingResponse(
+                user_id=req.user_id,
+                message="Sorry, I couldn't catch that. Could you try again?",
+                is_complete=False,
+                turn_count=0,
+            )
+        user_message = transcript
+
+    if not user_message:
+        raise HTTPException(status_code=400, detail="Either message or audio_b64 is required")
+
+    # Run conversational onboarding
+    result = await run_onboarding_chat(req.user_id, user_message)
+
+    # Generate TTS for the response
+    audio_bytes = await text_to_speech(result["message"])
+    audio_b64 = base64.b64encode(audio_bytes).decode("ascii") if audio_bytes else None
+
+    # Build profile if complete
+    profile = None
+    if result["is_complete"] and result.get("profile"):
+        p = result["profile"]
+        profile = VoiceOnboardingProfile(
+            name=p.get("name"),
+            risk=p.get("risk"),
+            horizon=p.get("horizon"),
+            knowledge=p.get("knowledge"),
+        )
+
+    return VoiceOnboardingResponse(
+        user_id=req.user_id,
+        message=result["message"],
+        audio_b64=audio_b64,
+        is_complete=result["is_complete"],
+        turn_count=result["turn_count"],
+        profile=profile,
+        transcript=transcript,
+    )
+
+
+@app.post("/api/onboarding/voice/upload")
+async def onboarding_voice_upload(
+    user_id: str = Form(...),
+    audio: UploadFile = File(...),
+) -> VoiceOnboardingResponse:
+    """Voice onboarding via multipart audio file upload (used by mobile).
+
+    Transcribes the audio via Whisper, then runs the conversational onboarding.
+    """
+    import base64
+
+    from finly_backend.onboarding_chat import run_onboarding_chat
+    from finly_backend.voice import text_to_speech, transcribe_audio
+
+    audio_bytes = await audio.read()
+    content_type = audio.content_type or "audio/m4a"
+
+    transcript = await transcribe_audio(audio_bytes, content_type)
+    if not transcript:
+        return VoiceOnboardingResponse(
+            user_id=user_id,
+            message="Sorry, I couldn't catch that. Could you try again?",
+            is_complete=False,
+            turn_count=0,
+        )
+
+    result = await run_onboarding_chat(user_id, transcript)
+
+    audio_resp = await text_to_speech(result["message"])
+    audio_b64 = base64.b64encode(audio_resp).decode("ascii") if audio_resp else None
+
+    profile = None
+    if result["is_complete"] and result.get("profile"):
+        p = result["profile"]
+        profile = VoiceOnboardingProfile(
+            name=p.get("name"),
+            risk=p.get("risk"),
+            horizon=p.get("horizon"),
+            knowledge=p.get("knowledge"),
+        )
+
+    return VoiceOnboardingResponse(
+        user_id=user_id,
+        message=result["message"],
+        audio_b64=audio_b64,
+        is_complete=result["is_complete"],
+        turn_count=result["turn_count"],
+        profile=profile,
+        transcript=transcript,
+    )
+
+
+@app.post("/api/onboarding/voice/reset")
+async def onboarding_voice_reset(user_id: str = Query(...)):
+    """Reset voice onboarding conversation to start fresh."""
+    from finly_backend.onboarding_chat import reset_onboarding_chat
+
+    reset_onboarding_chat(user_id)
+    return {"status": "ok", "message": "Voice onboarding conversation reset"}
 
 
 @app.get("/api/user/{user_id}/profile")

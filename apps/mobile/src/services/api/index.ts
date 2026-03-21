@@ -26,6 +26,7 @@ import type {
   ReportRegenerateRequest,
   ReportResponse,
   UserProfile,
+  VoiceOnboardingResponse,
 } from "./types"
 
 export const DEFAULT_API_CONFIG: ApiConfig = {
@@ -75,6 +76,81 @@ export class Api {
       if (problem) return problem
     }
     return { kind: "ok", profile: response.data! }
+  }
+
+  // -----------------------------------------------------------------------
+  // Voice onboarding
+  // -----------------------------------------------------------------------
+
+  async voiceOnboardingGreeting(
+    userId: string,
+  ): Promise<{ kind: "ok"; data: VoiceOnboardingResponse } | GeneralApiProblem> {
+    const response: ApiResponse<VoiceOnboardingResponse> = await this.apisauce.post(
+      "/api/onboarding/voice",
+      { user_id: userId, is_initial: true },
+    )
+    if (!response.ok) {
+      const problem = getGeneralApiProblem(response)
+      if (problem) return problem
+    }
+    return { kind: "ok", data: response.data! }
+  }
+
+  async voiceOnboardingMessage(
+    userId: string,
+    message: string,
+  ): Promise<{ kind: "ok"; data: VoiceOnboardingResponse } | GeneralApiProblem> {
+    const response: ApiResponse<VoiceOnboardingResponse> = await this.apisauce.post(
+      "/api/onboarding/voice",
+      { user_id: userId, message },
+      { timeout: 60000 },
+    )
+    if (!response.ok) {
+      const problem = getGeneralApiProblem(response)
+      if (problem) return problem
+    }
+    return { kind: "ok", data: response.data! }
+  }
+
+  async voiceOnboardingUpload(
+    userId: string,
+    audioUri: string,
+  ): Promise<{ kind: "ok"; data: VoiceOnboardingResponse } | GeneralApiProblem> {
+    // Use FormData for multipart audio upload
+    const formData = new FormData()
+    formData.append("user_id", userId)
+    formData.append("audio", {
+      uri: audioUri,
+      type: "audio/m4a",
+      name: "recording.m4a",
+    } as unknown as Blob)
+
+    const response: ApiResponse<VoiceOnboardingResponse> = await this.apisauce.post(
+      "/api/onboarding/voice/upload",
+      formData,
+      {
+        timeout: 60000,
+        headers: { "Content-Type": "multipart/form-data" },
+      },
+    )
+    if (!response.ok) {
+      const problem = getGeneralApiProblem(response)
+      if (problem) return problem
+    }
+    return { kind: "ok", data: response.data! }
+  }
+
+  async voiceOnboardingReset(
+    userId: string,
+  ): Promise<{ kind: "ok" } | GeneralApiProblem> {
+    const response = await this.apisauce.post(
+      `/api/onboarding/voice/reset?user_id=${userId}`,
+    )
+    if (!response.ok) {
+      const problem = getGeneralApiProblem(response)
+      if (problem) return problem
+    }
+    return { kind: "ok" }
   }
 
   // -----------------------------------------------------------------------
