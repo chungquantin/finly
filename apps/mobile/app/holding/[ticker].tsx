@@ -13,12 +13,6 @@ import { boardThreads, holdingDecisions } from "@/utils/mockAppData"
 import { openLinkInBrowser } from "@/utils/openLinkInBrowser"
 import { useSelectedPortfolioData } from "@/utils/selectedPortfolio"
 
-const decisionColors = {
-  Buy: { background: "#E9F7EF", text: "#1F8A4C" },
-  Sell: { background: "#FFF1F1", text: "#D64545" },
-  Position: { background: "#EEF3FF", text: "#2453FF" },
-} as const
-
 const QUICK_PROMPT_TEMPLATES = [
   "Should I add more {ticker} this month?",
   "What would make you upgrade {ticker} from Position to Buy?",
@@ -119,19 +113,17 @@ export default function HoldingDetailRoute() {
     <SafeAreaView className="flex-1 bg-[#FBFCFF]">
       <ScrollView className="flex-1" contentContainerStyle={$content}>
         <IosHeader
-          title={holding.ticker}
+          title=""
           leftLabel="‹"
-          rightLabel={formatSignedUsd(totalGain)}
           onLeftPress={() => router.back()}
-          titleClassName="text-[20px] leading-[24px]"
-          rightLabelClassName={totalGain >= 0 ? "text-[#1F8A4C]" : "text-[#D64545]"}
+          titleClassName="text-[0px] leading-[0px]"
+          containerClassName="pb-1 pt-1"
         />
 
         <View className="px-4">
-          <View className="rounded-[30px] border border-[#EEF2F7] bg-white p-5">
+          <View className="rounded-[30px] border border-[#C7D0DC] bg-white p-5">
             <View className="flex-row items-center">
-              <TickerLogo ticker={holding.ticker} logoUri={holding.logoUri} />
-              <View className="ml-3 flex-1">
+              <View className="flex-1">
                 <Text className="font-sans text-[28px] font-semibold text-[#0F1728]">
                   {holding.name}
                 </Text>
@@ -139,15 +131,13 @@ export default function HoldingDetailRoute() {
                   Allocation {holding.allocationPercent}% · {holding.shares} shares
                 </Text>
               </View>
-              <View
-                className="rounded-full px-3 py-2"
-                style={{ backgroundColor: decisionColors[decision.decision].background }}
-              >
+              <View className="items-end">
                 <Text
-                  className="font-sans text-[13px] font-semibold"
-                  style={{ color: decisionColors[decision.decision].text }}
+                  className={`font-sans text-[22px] font-semibold ${
+                    totalGain >= 0 ? "text-[#1F8A4C]" : "text-[#D64545]"
+                  }`}
                 >
-                  {decision.decision}
+                  {formatSignedUsd(totalGain)}
                 </Text>
               </View>
             </View>
@@ -168,48 +158,45 @@ export default function HoldingDetailRoute() {
 
             <View className="mt-5 rounded-[24px] bg-[#FBFBFD] p-4">
               <Text className="font-sans text-[18px] font-semibold text-[#0F1728]">
-                Transactions
-              </Text>
-              <Text className="mt-1 font-sans text-[14px] text-[#7A8699]">
-                Time each share lot was bought
+                {holdingTransactions.length} Transactions
               </Text>
 
-              <View className="mt-4 gap-3">
-                {buyTransactions.length ? (
-                  buyTransactions.map((transaction) => {
-                    const gain = lotGainUsd(holding.valueUsd, holding.shares, transaction)
+              <View className="mt-2">
+                {holdingTransactions.length ? (
+                  holdingTransactions.map((transaction) => {
+                    const totalPrice = transaction.quantity * transaction.price
                     return (
                       <View
                         key={`${transaction.ticker}-${transaction.executedAt}-${transaction.quantity}-${transaction.price}`}
-                        className="rounded-[18px] border border-[#EEF2F7] bg-white px-4 py-3"
+                        className="flex-row items-center justify-between border-b border-[#C7D0DC] py-4 last:border-b-0"
                       >
-                        <View className="flex-row items-center justify-between">
-                          <Text className="font-sans text-[15px] font-semibold text-[#0F1728]">
-                            Bought {transaction.quantity} shares
-                          </Text>
-                          <View className="items-end">
-                            <Text className="font-sans text-[14px] text-[#425168]">
-                              ${transaction.price.toFixed(2)}
+                        <View className="mr-4 flex-row items-center">
+                          <TickerLogo ticker={transaction.ticker} logoUri={holding.logoUri} size={36} />
+                          <View className="ml-3">
+                            <Text className="font-sans text-[15px] font-semibold text-[#0F1728]">
+                              {transaction.ticker} {transaction.side === "buy" ? "Buy" : "Sell"}
                             </Text>
-                            <Text
-                              className={`mt-0.5 font-sans text-[13px] font-semibold ${
-                                gain >= 0 ? "text-[#1F8A4C]" : "text-[#D64545]"
-                              }`}
-                            >
-                              {formatGain(gain)}
+                            <Text className="mt-0.5 font-sans text-[13px] text-[#7A8699]">
+                              {transaction.quantity} shares · ${transaction.price.toFixed(2)}
                             </Text>
                           </View>
                         </View>
-                        <Text className="mt-1 font-sans text-[13px] text-[#7A8699]">
-                          {formatExecutedAt(transaction.executedAt)}
-                        </Text>
+
+                        <View className="items-end">
+                          <Text className="font-sans text-[16px] font-semibold text-[#0F1728]">
+                            ${totalPrice.toFixed(2)}
+                          </Text>
+                          <Text className="mt-0.5 font-sans text-[13px] text-[#7A8699]">
+                            {formatPublishedAt(transaction.executedAt)}
+                          </Text>
+                        </View>
                       </View>
                     )
                   })
                 ) : (
-                  <View className="rounded-[18px] border border-[#EEF2F7] bg-white px-4 py-3">
+                  <View className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3">
                     <Text className="font-sans text-[14px] text-[#7A8699]">
-                      No buy transactions recorded for this holding.
+                      No transactions recorded for this holding.
                     </Text>
                   </View>
                 )}
@@ -251,7 +238,7 @@ export default function HoldingDetailRoute() {
 
               <View className="mt-4 gap-3">
                 {newsLoading ? (
-                  <View className="rounded-[18px] border border-[#EEF2F7] bg-white px-4 py-3">
+                  <View className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3">
                     <Text className="font-sans text-[14px] text-[#7A8699]">Loading news...</Text>
                   </View>
                 ) : null}
@@ -260,7 +247,7 @@ export default function HoldingDetailRoute() {
                   ? newsItems.map((item) => (
                       <Pressable
                         key={item.url}
-                        className="rounded-[18px] border border-[#EEF2F7] bg-white px-4 py-3"
+                        className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3"
                         onPress={() => {
                           void openLinkInBrowser(item.url)
                         }}
@@ -282,7 +269,7 @@ export default function HoldingDetailRoute() {
                   : null}
 
                 {!newsLoading && !newsItems.length ? (
-                  <View className="rounded-[18px] border border-[#EEF2F7] bg-white px-4 py-3">
+                  <View className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3">
                     <Text className="font-sans text-[14px] text-[#7A8699]">
                       No recent news found for this ticker.
                     </Text>
@@ -325,7 +312,7 @@ export default function HoldingDetailRoute() {
                 {relatedThreads.map((thread) => (
                   <Pressable
                     key={thread.id}
-                    className="rounded-[22px] border border-[#EEF2F7] bg-white px-4 py-4"
+                    className="rounded-[22px] border border-[#C7D0DC] bg-white px-4 py-4"
                     onPress={() => router.push(`/thread/${thread.id}`)}
                   >
                     <View className="flex-row items-center justify-between">
@@ -360,18 +347,6 @@ function Tag({ label }: { label: string }) {
   )
 }
 
-function formatExecutedAt(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })
-}
-
 function lotGainUsd(
   holdingValueUsd: number,
   holdingShares: number,
@@ -380,12 +355,6 @@ function lotGainUsd(
   if (!holdingShares) return 0
   const currentPrice = holdingValueUsd / holdingShares
   return (currentPrice - transaction.price) * transaction.quantity
-}
-
-function formatGain(value: number) {
-  const abs = Math.abs(value)
-  const sign = value >= 0 ? "+" : "-"
-  return `${sign}$${abs.toFixed(2)} gain`
 }
 
 function formatSignedUsd(value: number) {

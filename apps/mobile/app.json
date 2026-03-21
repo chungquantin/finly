@@ -11,7 +11,9 @@
   },
   "newArchEnabled": true,
   "jsEngine": "hermes",
-  "assetBundlePatterns": ["**/*"],
+  "assetBundlePatterns": [
+    "**/*"
+  ],
   "android": {
     "icon": "./assets/images/app-icon-android-legacy.png",
     "package": "com.finly",
@@ -25,7 +27,20 @@
   "ios": {
     "icon": "./assets/images/app-icon-ios.png",
     "supportsTablet": true,
-    "bundleIdentifier": "com.finly"
+    "bundleIdentifier": "com.finly",
+    "privacyManifests": {
+      "NSPrivacyAccessedAPITypes": [
+        {
+          "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+          "NSPrivacyAccessedAPITypeReasons": [
+            "CA92.1"
+          ]
+        }
+      ]
+    },
+    "infoPlist": {
+      "ITSAppUsesNonExemptEncryption": false
+    }
   },
   "web": {
     "favicon": "./assets/images/app-icon-web-favicon.png",
@@ -60,6 +75,9 @@
   "extra": {
     "ignite": {
       "version": "UNKNOWN"
+    },
+    "eas": {
+      "projectId": "7e157bb7-30dd-4668-a127-7029d5eaf3f8"
     }
   }
 }

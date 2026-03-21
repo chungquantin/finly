@@ -12,6 +12,8 @@ import { useAgentBoardStore } from "@/stores/agentBoardStore"
 import { useSelectedPortfolioData } from "@/utils/selectedPortfolio"
 import { getTickerLogoUri } from "@/utils/tickerLogo"
 
+const PORTFOLIO_BORDER = "#C7D0DC"
+
 const money = (value: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -30,6 +32,27 @@ const moneyWithCents = (value: number) =>
 const signedMoney = (value: number) => `${value >= 0 ? "+" : "-"}${moneyWithCents(Math.abs(value))}`
 
 const signedPct = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`
+const formatLastRefresh = (timestamp: number | null) => {
+  if (!timestamp) return "Last refresh unavailable"
+  const date = new Date(timestamp)
+  const absOffsetMinutes = Math.abs(date.getTimezoneOffset())
+  const offsetHours = Math.floor(absOffsetMinutes / 60)
+  const offsetMinutes = absOffsetMinutes % 60
+  const offsetSign = date.getTimezoneOffset() <= 0 ? "+" : "-"
+  const gmtOffset =
+    offsetMinutes === 0
+      ? `GMT${offsetSign}${offsetHours}`
+      : `GMT${offsetSign}${offsetHours}:${offsetMinutes.toString().padStart(2, "0")}`
+
+  const label = date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+  return `Last refresh ${label} ${gmtOffset}`
+}
 
 const sortLabels = {
   value: "Value",
@@ -46,7 +69,7 @@ export default function PortfolioTab() {
   const [sortBy, setSortBy] = useState<HoldingsSort>("value")
   const { holdings, snapshot: portfolioSnapshot } = useSelectedPortfolioData()
   const boardThreads = useAgentBoardStore((state) => state.threads)
-  const { quotes } = useMarketData(holdings.map((holding) => holding.ticker))
+  const { quotes, lastUpdatedAt } = useMarketData(holdings.map((holding) => holding.ticker))
   const showPortfolioSkeleton = false
   const enrichedHoldings = useMemo(() => holdings.map((holding) => ({ ...holding })), [holdings])
   const totalValueUsd = useMemo(
@@ -77,10 +100,7 @@ export default function PortfolioTab() {
     if (!portfolioSnapshot.investedUsd) return 0
     return (totalPnlUsd / portfolioSnapshot.investedUsd) * 100
   }, [portfolioSnapshot.investedUsd, totalPnlUsd])
-  const accountBalanceUsd = useMemo(
-    () => portfolioSnapshot.cashUsd + totalPnlUsd,
-    [portfolioSnapshot.cashUsd, totalPnlUsd],
-  )
+  const accountBalanceUsd = useMemo(() => totalValueUsd, [totalValueUsd])
   const totalPnlLabel = totalPnlUsd >= 0 ? "Total Gain" : "Total Loss"
   const dailyPnlLabel = dailyPnlUsd >= 0 ? "Day's Gain" : "Day's Loss"
   const sortedHoldings = useMemo(() => {
@@ -140,8 +160,37 @@ export default function PortfolioTab() {
         (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
       )
   }, [boardThreads, enrichedHoldings, quotes])
+  const latestHeldThreadIdByTicker = useMemo(() => {
+    const heldTickerSet = new Set(
+      enrichedHoldings.map((holding) => holding.ticker.trim().toUpperCase()),
+    )
+    const map = new Map<string, string>()
+
+    boardThreads
+      .filter((thread) => thread.ticker.trim().toUpperCase() !== "BOARD")
+      .sort(
+        (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
+      )
+      .forEach((thread) => {
+        const ticker = thread.ticker.trim().toUpperCase()
+        if (!ticker || !heldTickerSet.has(ticker) || map.has(ticker)) return
+        map.set(ticker, thread.id)
+      })
+
+    return map
+  }, [boardThreads, enrichedHoldings])
+
   const handleOpenTickerDetail = (ticker: string) => {
     const normalizedTicker = ticker.trim().toUpperCase()
+    router.push(`/holding/${normalizedTicker}`)
+  }
+  const handleOpenBoardForHolding = (ticker: string) => {
+    const normalizedTicker = ticker.trim().toUpperCase()
+    const threadId = latestHeldThreadIdByTicker.get(normalizedTicker)
+    if (threadId) {
+      router.push(`/thread/${threadId}`)
+      return
+    }
     router.push(`/holding/${normalizedTicker}`)
   }
 
@@ -164,59 +213,55 @@ export default function PortfolioTab() {
             />
           </View>
 
-          <View className="rounded-[30px] border border-[#EEF2F7] bg-white p-5">
-            <Text className="font-sans text-[22px] font-semibold tracking-[1.2px] text-[#7A8699]">
-              Total Returns
-            </Text>
-            <Text className="mt-2 font-sans text-[40px] font-semibold leading-[44px] tracking-[-0.8px] text-black">
-              {moneyWithCents(accountBalanceUsd)}
-            </Text>
+          <View className="rounded-[30px] border bg-white p-5" style={{ borderColor: PORTFOLIO_BORDER }}>
+            <View className="mt-2 flex-row items-end">
+              <Text className="font-sans text-[40px] font-semibold leading-[44px] tracking-[-0.8px] text-black">
+                {moneyWithCents(accountBalanceUsd)}
+              </Text>
+              <Text className="ml-2 pb-1 font-sans text-[12px] text-[#98A2B3]">
+                Initial amount {moneyWithCents(portfolioSnapshot.investedUsd)}
+              </Text>
+            </View>
             {showPortfolioSkeleton ? <SkeletonBlock className="mt-2 h-10 w-40" /> : null}
 
             <View className="mt-3 flex-row items-center">
               <Text
-                className={`font-sans text-[16px] font-semibold ${
-                  totalPnlUsd >= 0 ? "text-[#22B45A]" : "text-[#F04438]"
-                }`}
-              >
-                {signedMoney(totalPnlUsd)} ({signedPct(totalPnlPct)})
-              </Text>
-              <Text className="ml-2 font-sans text-[16px] font-semibold text-[#0F1728]">
-                {totalPnlLabel}
-              </Text>
-            </View>
-
-            <View className="mt-2 flex-row items-center">
-              <Text
-                className={`font-sans text-[16px] font-semibold ${
+                className={`font-sans text-[17px] font-bold ${
                   dailyPnlUsd >= 0 ? "text-[#22B45A]" : "text-[#F04438]"
                 }`}
               >
                 {signedMoney(dailyPnlUsd)} ({signedPct(dailyChangePct)})
               </Text>
-              <Text className="ml-2 font-sans text-[16px] font-semibold text-[#0F1728]">
+              <Text className="ml-2 font-sans text-[17px] font-bold text-[#0F1728]">
                 {dailyPnlLabel}
               </Text>
             </View>
+
+            <View className="mt-2 flex-row items-center">
+              <Text
+                className={`font-sans text-[17px] font-bold ${
+                  totalPnlUsd >= 0 ? "text-[#22B45A]" : "text-[#F04438]"
+                }`}
+              >
+                {signedMoney(totalPnlUsd)} ({signedPct(totalPnlPct)})
+              </Text>
+              <Text className="ml-2 font-sans text-[17px] font-bold text-[#0F1728]">
+                {totalPnlLabel}
+              </Text>
+            </View>
             <Text className="mt-1 font-sans text-[11px] text-[#98A2B3]">
-              Initial amount {moneyWithCents(portfolioSnapshot.cashUsd)}
+              {formatLastRefresh(lastUpdatedAt)}
             </Text>
           </View>
 
-          <View className="mt-4 rounded-[30px] border border-[#EEF2F7] bg-white p-4">
-            <View className="flex-row items-center justify-between">
+          <View
+            className="mt-4 rounded-[30px] border bg-white p-4"
+            style={{ borderColor: PORTFOLIO_BORDER }}
+          >
+            <View className="flex-row items-center">
               <Text className="font-sans text-[24px] font-semibold text-[#0F1728]">
                 {assetTab === "assets" ? "Assets" : "Watchlist"}
               </Text>
-              {assetTab === "assets" ? (
-                <Text className="font-sans text-[14px] text-[#7A8699]">
-                  Sorted by {sortLabels[sortBy]}
-                </Text>
-              ) : (
-                <Text className="font-sans text-[14px] text-[#7A8699]">
-                  Sorted by latest board update
-                </Text>
-              )}
             </View>
 
             {assetTab === "assets" ? (
@@ -256,10 +301,13 @@ export default function PortfolioTab() {
                         name={holding.name}
                         logoUri={holding.logoUri}
                         ticker={holding.ticker}
+                        shares={holding.shares}
                         value={money(holding.valueUsd)}
                         allocationPercent={holding.allocationPercent}
                         changePercent={holding.changePercent}
                         onPress={() => handleOpenTickerDetail(holding.ticker)}
+                        onViewBoard={() => handleOpenBoardForHolding(holding.ticker)}
+                        borderColor={PORTFOLIO_BORDER}
                       />
                     ))}
                   </View>
@@ -278,7 +326,11 @@ export default function PortfolioTab() {
               watchlistRows.map((item) => (
                 <Pressable
                   key={item.ticker}
-                  className="border-b border-[#EEF2F7] py-4 last:border-b-0"
+                  className="border-b py-4 last:border-b-0"
+                  style={({ hovered }) => [
+                    { borderColor: PORTFOLIO_BORDER },
+                    hovered ? $hoverCardOutline : null,
+                  ]}
                   onPress={() => router.push(`/watchlist/${item.ticker}`)}
                 >
                   <View className="flex-row items-center justify-between">
@@ -340,13 +392,13 @@ function SortButton({
 }) {
   return (
     <Pressable
-      className={`rounded-full px-3 py-1.5 border ${
+      className={`rounded-full px-4 py-2 border ${
         active ? "bg-black border-black" : "bg-[#F3F6FC] border-[#E6EAF2]"
       }`}
       onPress={onPress}
     >
       <Text
-        className={`font-sans text-[12px] font-semibold ${active ? "text-white" : "text-black"}`}
+        className={`font-sans text-[14px] font-semibold ${active ? "text-white" : "text-black"}`}
       >
         {label}
       </Text>
@@ -385,4 +437,10 @@ function SkeletonBlock({ className = "" }: { className?: string }) {
 
 const $scrollContent = {
   paddingBottom: 120,
+}
+
+const $hoverCardOutline = {
+  borderWidth: 1,
+  borderColor: "#000000",
+  borderRadius: 14,
 }

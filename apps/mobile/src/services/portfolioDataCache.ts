@@ -16,12 +16,13 @@ type CachedPayload<T> = {
 
 export async function loadMarketQuotesCache(
   tickerKey: string,
-): Promise<{ quotes: MarketDataQuote[]; isFresh: boolean } | null> {
+): Promise<{ quotes: MarketDataQuote[]; isFresh: boolean; cachedAt: number } | null> {
   const payload = await loadCached<MarketDataQuote[]>(`${MARKET_QUOTES_CACHE_PREFIX}${tickerKey}`)
   if (!payload) return null
   return {
     quotes: payload.data,
     isFresh: Date.now() - payload.cachedAt <= MARKET_QUOTES_CACHE_TTL_MS,
+    cachedAt: payload.cachedAt,
   }
 }
 
