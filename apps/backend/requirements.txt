@@ -1,6 +1,7 @@
 fastapi
 httpx
 python-dotenv
+python-multipart
 pydantic
 uvicorn
 yfinance
