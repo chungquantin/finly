@@ -1,5 +1,5 @@
 /* eslint-disable no-restricted-imports */
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { ActivityIndicator, Pressable, Text, View, ViewStyle } from "react-native"
 import { useRouter } from "expo-router"
 import { MotiView } from "moti"
@@ -9,9 +9,14 @@ import { IosHeader } from "../components/IosHeader"
 import { TickerLogoStack } from "../components/TickerLogoStack"
 import { FINLY_DEFAULT_USER_ID } from "../services/agentUser"
 import { api } from "../services/api"
+import { useMarketData } from "../services/marketData"
 import { useOnboardingStore } from "../stores/onboardingStore"
 import { buildMockPortfolio } from "../utils/mockPortfolio"
-import { DEFAULT_STOCK_ACCOUNT_ID, getMockStockAccountById } from "../utils/mockStockAccounts"
+import {
+  DEFAULT_STOCK_ACCOUNT_ID,
+  getMockStockAccountById,
+  getMockStockAccountHoldings,
+} from "../utils/mockStockAccounts"
 import { playBase64Audio } from "../utils/playAudio"
 
 const money = (value: number) =>
@@ -38,6 +43,15 @@ export function OnboardingCompleteScreen() {
   const selectedStockAccount = getMockStockAccountById(
     stockAccountId ?? (portfolioType === "stock" ? DEFAULT_STOCK_ACCOUNT_ID : null),
   )
+  const selectedHoldings = useMemo(
+    () => (selectedStockAccount ? getMockStockAccountHoldings(selectedStockAccount) : []),
+    [selectedStockAccount],
+  )
+  const selectedTickers = useMemo(
+    () => selectedHoldings.map((holding) => holding.ticker.toUpperCase()),
+    [selectedHoldings],
+  )
+  const { quotes, isLoading, hasLiveQuotes } = useMarketData(selectedTickers)
 
   const portfolio = buildMockPortfolio({
     riskExpertise,
@@ -47,6 +61,43 @@ export function OnboardingCompleteScreen() {
     walletAddress,
     stockAccountId,
   })
+  const liveTotals = useMemo(() => {
+    if (!selectedHoldings.length) return null
+
+    const totalBalance = selectedHoldings.reduce((sum, holding) => {
+      const quote = quotes[holding.ticker.toUpperCase()]
+      const price = quote?.price ?? holding.avg_cost
+      return sum + holding.quantity * price
+    }, 0)
+    const previousBalance = selectedHoldings.reduce((sum, holding) => {
+      const quote = quotes[holding.ticker.toUpperCase()]
+      if (!quote || quote.change_pct <= -100) {
+        return sum + holding.quantity * holding.avg_cost
+      }
+      const previousPrice = quote.price / (1 + quote.change_pct / 100)
+      return sum + holding.quantity * previousPrice
+    }, 0)
+
+    if (!previousBalance) {
+      return {
+        totalBalance,
+        todayGainPct: 0,
+      }
+    }
+
+    return {
+      totalBalance,
+      todayGainPct: ((totalBalance - previousBalance) / previousBalance) * 100,
+    }
+  }, [quotes, selectedHoldings])
+  const totalBalance =
+    portfolioType === "stock" && hasLiveQuotes && liveTotals
+      ? liveTotals.totalBalance
+      : portfolio.totalBalance
+  const todayGainPct =
+    portfolioType === "stock" && hasLiveQuotes && liveTotals
+      ? liveTotals.todayGainPct
+      : portfolio.todayGainPct
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -75,7 +126,7 @@ export function OnboardingCompleteScreen() {
         await api.importPortfolio({
           user_id: userId,
           mode: "manual",
-          items: selectedStockAccount?.holdings ?? [],
+          items: selectedHoldings,
         })
       } else {
         await api.importPortfolio({
@@ -150,11 +201,21 @@ export function OnboardingCompleteScreen() {
               </View>
             ) : null}
             <Text className="font-sans mt-2 text-[30px] font-semibold leading-[34px] text-[#111111]">
-              {money(portfolio.totalBalance)}
+              {money(totalBalance)}
             </Text>
             <Text className="font-sans mt-1 text-[16px] font-semibold text-[#16A34A]">
-              +{portfolio.todayGainPct}% today
+              {todayGainPct >= 0 ? "+" : ""}
+              {todayGainPct.toFixed(2)}% today
             </Text>
+            {portfolioType === "stock" ? (
+              <Text className="font-sans mt-1 text-[12px] text-[#6B7280]">
+                {isLoading
+                  ? "Loading live quotes..."
+                  : hasLiveQuotes
+                    ? "Live market data"
+                    : "Fallback estimate"}
+              </Text>
+            ) : null}
           </View>
         </MotiView>
 

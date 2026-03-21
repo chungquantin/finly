@@ -62,6 +62,37 @@ export interface PortfolioResponse {
   items: Record<string, unknown>[]
 }
 
+export interface MarketDataQuote {
+  ticker: string
+  price: number
+  change_pct: number
+  currency: string
+}
+
+export interface MarketHistoryPoint {
+  date: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
+
+export interface MarketHistoryTickerResult {
+  ticker: string
+  currency?: string
+  period?: string
+  interval?: string
+  data: MarketHistoryPoint[]
+  error?: string
+}
+
+export interface MarketHistoryBatchResponse {
+  period: string
+  interval: string
+  results: Record<string, MarketHistoryTickerResult>
+}
+
 // ---------------------------------------------------------------------------
 // Intake (conversational goal extraction)
 // ---------------------------------------------------------------------------

@@ -953,15 +953,76 @@ async def api_chat_voice(req: ChatRequest):
 
 @app.get("/api/market-data")
 async def market_data(tickers: str = Query(default="VCB,FPT,VNM,TPB")):
-    from finly_backend.mock_data import _BASE_PRICES, _clean
+    from finly_backend.mock_data import _BASE_PRICES, _clean, is_vn_ticker
 
     import random
+    import yfinance as yf
+
+    def _to_float(value: Any) -> float | None:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        if number != number:  # NaN guard
+            return None
+        return number
+
+    def _fast_info_value(fast_info: Any, key: str) -> Any:
+        if hasattr(fast_info, "get"):
+            try:
+                return fast_info.get(key)
+            except Exception:
+                pass
+        try:
+            return fast_info[key]
+        except Exception:
+            return None
+
+    def _load_us_quote(symbol: str) -> MarketTicker | None:
+        ticker = yf.Ticker(symbol)
+        fast_info = ticker.fast_info
+
+        price = _to_float(_fast_info_value(fast_info, "lastPrice")) or _to_float(
+            _fast_info_value(fast_info, "regularMarketPrice")
+        )
+        previous_close = _to_float(_fast_info_value(fast_info, "previousClose")) or _to_float(
+            _fast_info_value(fast_info, "regularMarketPreviousClose")
+        )
+        currency = str(_fast_info_value(fast_info, "currency") or "USD").upper()
+
+        # `fast_info` can be incomplete; fall back to the latest daily candles.
+        if price is None or previous_close is None:
+            history = ticker.history(period="5d", interval="1d")
+            close_series = history.get("Close")
+            close_values = close_series.tolist() if close_series is not None else []
+            closes = [_to_float(value) for value in close_values]
+            closes = [value for value in closes if value is not None]
+            if closes:
+                price = price if price is not None else closes[-1]
+                if previous_close is None:
+                    previous_close = closes[-2] if len(closes) > 1 else closes[-1]
+
+        if price is None:
+            return None
+
+        change_pct = 0.0
+        if previous_close and previous_close != 0:
+            change_pct = ((price - previous_close) / previous_close) * 100
+
+        return MarketTicker(
+            ticker=symbol,
+            price=round(price, 2),
+            change_pct=round(change_pct, 2),
+            currency=currency,
+        )
 
     results: list[dict] = []
     for raw_ticker in tickers.split(","):
         raw_ticker = raw_ticker.strip().upper()
+        if not raw_ticker:
+            continue
         clean = _clean(raw_ticker)
-        if clean in _BASE_PRICES:
+        if is_vn_ticker(clean) and clean in _BASE_PRICES:
             base = _BASE_PRICES[clean]
             random.seed(hash(clean + date.today().isoformat()) % 2**31)
             change_pct = round(random.uniform(-3.0, 4.0), 2)
@@ -975,14 +1036,15 @@ async def market_data(tickers: str = Query(default="VCB,FPT,VNM,TPB")):
                 ).model_dump()
             )
         else:
-            results.append(
-                MarketTicker(
-                    ticker=raw_ticker,
-                    price=0.0,
-                    change_pct=0.0,
-                    currency="USD",
-                ).model_dump()
-            )
+            try:
+                quote = _load_us_quote(clean)
+            except Exception:
+                logger.exception("Failed to fetch yfinance quote for %s", clean)
+                quote = None
+
+            # Skip symbols that cannot be resolved so the mobile client can use local fallback.
+            if quote:
+                results.append(quote.model_dump())
     return results
 
 
@@ -1034,44 +1096,54 @@ async def heartbeat_custom(req: CustomAlertRequest):
 # Market data
 # ---------------------------------------------------------------------------
 
-@app.get("/api/market-data/history")
-async def market_data_history(
-    ticker: str = Query(...),
-    period: str = Query(default="1mo"),
-    interval: str = Query(default="1d"),
-):
-    """Return OHLCV history for a ticker. Uses yfinance for US tickers, mock data for VN."""
-    from finly_backend.mock_data import is_vn_ticker, _generate_ohlcv
+def _market_data_history_payload(
+    ticker: str,
+    period: str = "1mo",
+    interval: str = "1d",
+) -> dict[str, Any]:
+    """Return OHLCV history payload for a ticker with VN mock + yfinance routing."""
+    from finly_backend.mock_data import _generate_ohlcv, is_vn_ticker
 
     clean_ticker = ticker.upper().strip()
     currency = "VND" if is_vn_ticker(clean_ticker) else "USD"
 
     if is_vn_ticker(clean_ticker):
-        period_days = {"1d": 1, "5d": 5, "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365}.get(period, 30)
+        period_days = {
+            "1d": 1,
+            "5d": 5,
+            "1mo": 30,
+            "3mo": 90,
+            "6mo": 180,
+            "1y": 365,
+        }.get(period, 30)
         raw = _generate_ohlcv(clean_ticker, days=period_days)
         data = [
-            {"date": r["Date"], "open": r["Open"], "high": r["High"],
-             "low": r["Low"], "close": r["Close"], "volume": r["Volume"]}
+            {
+                "date": r["Date"],
+                "open": r["Open"],
+                "high": r["High"],
+                "low": r["Low"],
+                "close": r["Close"],
+                "volume": r["Volume"],
+            }
             for r in raw
         ]
     else:
-        try:
-            import yfinance as yf
-            tk = yf.Ticker(clean_ticker)
-            hist = tk.history(period=period, interval=interval)
-            data = [
-                {
-                    "date": idx.strftime("%Y-%m-%d"),
-                    "open": round(row["Open"], 2),
-                    "high": round(row["High"], 2),
-                    "low": round(row["Low"], 2),
-                    "close": round(row["Close"], 2),
-                    "volume": int(row["Volume"]),
-                }
-                for idx, row in hist.iterrows()
-            ]
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"yfinance error: {e}")
+        import yfinance as yf
+
+        tk = yf.Ticker(clean_ticker)
+        hist = tk.history(period=period, interval=interval)
+        data = [
+            {
+                "date": idx.strftime("%Y-%m-%d"),
+                "open": round(float(row["Open"]), 2),
+                "high": round(float(row["High"]), 2),
+                "low": round(float(row["Low"]), 2),
+                "close": round(float(row["Close"]), 2),
+                "volume": int(row["Volume"]),
+            }
+            for idx, row in hist.iterrows()
+        ]
 
     return {
         "ticker": clean_ticker,
@@ -1080,6 +1152,48 @@ async def market_data_history(
         "interval": interval,
         "data": data,
     }
+
+
+@app.get("/api/market-data/history")
+async def market_data_history(
+    ticker: str = Query(...),
+    period: str = Query(default="1mo"),
+    interval: str = Query(default="1d"),
+):
+    """Return OHLCV history for one ticker."""
+    try:
+        return _market_data_history_payload(
+            ticker=ticker,
+            period=period,
+            interval=interval,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"history data error: {e}")
+
+
+@app.get("/api/market-data/history/batch")
+async def market_data_history_batch(
+    tickers: str = Query(..., description="Comma-separated ticker symbols"),
+    period: str = Query(default="1mo"),
+    interval: str = Query(default="1d"),
+):
+    """Return OHLCV history for multiple tickers in one request."""
+    symbols = [ticker.strip().upper() for ticker in tickers.split(",") if ticker.strip()]
+    if not symbols:
+        return {"period": period, "interval": interval, "results": {}}
+
+    results: dict[str, Any] = {}
+    for symbol in symbols:
+        try:
+            results[symbol] = _market_data_history_payload(
+                ticker=symbol,
+                period=period,
+                interval=interval,
+            )
+        except Exception as e:
+            results[symbol] = {"ticker": symbol, "error": str(e), "data": []}
+
+    return {"period": period, "interval": interval, "results": results}
 
 
 # ---------------------------------------------------------------------------

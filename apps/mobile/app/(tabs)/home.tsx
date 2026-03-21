@@ -17,6 +17,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { TickerLogo } from "@/components/TickerLogo"
 import { useMarketData } from "@/services/marketData"
+import { usePortfolioGrowthHistory } from "@/services/portfolioHistory"
 import { useOnboardingStore } from "@/stores/onboardingStore"
 import { getRandomAgentAvatar } from "@/utils/agentAvatars"
 import { boardMessages, teamAgents } from "@/utils/mockAppData"
@@ -45,7 +46,7 @@ export default function HomeTab() {
   const investmentHorizon = useOnboardingStore((state) => state.investmentHorizon)
   const financialKnowledge = useOnboardingStore((state) => state.financialKnowledge)
   const portfolioType = useOnboardingStore((state) => state.portfolioType)
-  const { holdings, snapshot: portfolioSnapshot } = useSelectedPortfolioData()
+  const { holdings, transactions, snapshot: portfolioSnapshot } = useSelectedPortfolioData()
   const avatarEmoji = useMemo(
     () => avatarEmojis[Math.floor(Math.random() * avatarEmojis.length)],
     [],
@@ -75,6 +76,7 @@ export default function HomeTab() {
     () => enrichedHoldings.reduce((sum, holding) => sum + holding.valueUsd, 0),
     [enrichedHoldings],
   )
+  const growthHistory = usePortfolioGrowthHistory(transactions)
   const teamPreviewAgents = useMemo(() => teamAgents.slice(0, 4), [])
   const expandedHeight = Math.max(height - insets.top - 12, COLLAPSED_VISIBLE_HEIGHT)
   const sheetHeight = useRef(new Animated.Value(COLLAPSED_VISIBLE_HEIGHT)).current
@@ -201,7 +203,7 @@ export default function HomeTab() {
                   from={{ opacity: 0, translateY: 16 }}
                   transition={{ delay: 220, duration: 420, type: "timing" }}
                 >
-                  <PortfolioGrowthChart snapshot={portfolioSnapshot} />
+                  <PortfolioGrowthChart history={growthHistory} snapshot={portfolioSnapshot} />
                 </MotiView>
 
                 <MotiView
@@ -338,16 +340,29 @@ function InvestmentProfileCard({
 }
 
 function PortfolioGrowthChart({
+  history,
   snapshot,
 }: {
+  history: ReturnType<typeof usePortfolioGrowthHistory>
   snapshot: {
     totalValueUsd: number
     dailyPnlUsd: number
     monthlyPnlPercent: number
   }
 }) {
-  const points = useMemo(() => createChartPoints(PORTFOLIO_GROWTH_POINTS, 272, 112), [])
+  const chartValues = useMemo(() => {
+    if (history.hasLiveHistory && history.points.length > 1) {
+      return history.points.map((point) => point.value)
+    }
+    return createFallbackPortfolioSeries(snapshot.totalValueUsd)
+  }, [history.hasLiveHistory, history.points, snapshot.totalValueUsd])
+  const points = useMemo(() => createChartPoints(chartValues, 272, 112), [chartValues])
   const lastPoint = points[points.length - 1]
+  const latestValue = chartValues[chartValues.length - 1] ?? snapshot.totalValueUsd
+  const monthlyChange = history.hasLiveHistory
+    ? history.monthlyChangePercent
+    : snapshot.monthlyPnlPercent
+  const todayDelta = history.hasLiveHistory ? history.todayChangeUsd : snapshot.dailyPnlUsd
 
   return (
     <View
@@ -362,11 +377,15 @@ function PortfolioGrowthChart({
           <Text className="mt-1 font-sans text-[14px] text-[#7A8699]">Last 30 days</Text>
         </View>
         <View className="items-end">
-          <Text className="font-sans text-[16px] font-semibold text-[#22B45A]">
-            +{snapshot.monthlyPnlPercent}%
+          <Text
+            className={`font-sans text-[16px] font-semibold ${monthlyChange >= 0 ? "text-[#22B45A]" : "text-[#F04438]"}`}
+          >
+            {monthlyChange >= 0 ? "+" : ""}
+            {monthlyChange.toFixed(2)}%
           </Text>
           <Text className="mt-1 font-sans text-[13px] text-[#7A8699]">
-            +{money(snapshot.dailyPnlUsd)} today
+            {todayDelta >= 0 ? "+" : "-"}
+            {money(Math.abs(todayDelta))} today
           </Text>
         </View>
       </View>
@@ -401,7 +420,7 @@ function PortfolioGrowthChart({
             style={{ left: Math.max(lastPoint.x - 58, 8), top: Math.max(lastPoint.y - 44, 0) }}
           >
             <Text className="font-sans text-[11px] font-medium text-white">
-              {money(snapshot.totalValueUsd)}
+              {money(latestValue)}
             </Text>
           </View>
         </View>
@@ -612,6 +631,19 @@ function createChartPoints(values: readonly number[], width: number, height: num
     x: (index / (values.length - 1)) * width,
     y: height - ((value - min) / range) * height,
   }))
+}
+
+function createFallbackPortfolioSeries(latestValue: number) {
+  const min = Math.min(...PORTFOLIO_GROWTH_POINTS)
+  const max = Math.max(...PORTFOLIO_GROWTH_POINTS)
+  const range = Math.max(max - min, 1)
+  const startValue = latestValue * 0.88
+  const valueRange = latestValue - startValue
+
+  return PORTFOLIO_GROWTH_POINTS.map((point) => {
+    const normalized = (point - min) / range
+    return startValue + normalized * valueRange
+  })
 }
 
 function segmentStyle(start: { x: number; y: number }, end: { x: number; y: number }) {

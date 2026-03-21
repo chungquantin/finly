@@ -42,11 +42,16 @@ The current holdings UI shows static prices and percent moves, which breaks the 
 - 2026-03-21: Replaced the mocked FastAPI `/api/market-data` route with `yfinance`-backed quote retrieval using `Ticker.get_fast_info()` plus history fallback for previous close.
 - 2026-03-21: Added a mobile market-data service and updated the home and portfolio holdings views to derive live values and daily change from backend quotes while preserving mock fallback behavior.
 - 2026-03-21: Removed the mobile/web client's hardcoded `127.0.0.1:8000` fallback, reused configured backend URLs for market data, and skipped fetches when no valid market-data backend is configured.
+- 2026-03-21: Updated `/api/market-data` to return live US quotes from `yfinance` and skip unresolved symbols so mobile UI falls back to local portfolio values instead of rendering `$0` entries.
+- 2026-03-21: Integrated mobile quote fetching into the shared API client (`apisauce`) and surfaced loading/live/fallback quote status in the portfolio tab.
+- 2026-03-21: Wired onboarding stock account selection and completion views to derive mock-account totals from live quotes (with explicit loading/fallback states).
 
 ## Verification
 
 - Commands run:
   - `python3 -m py_compile apps/backend/src/finly_backend/server.py`
+  - `pnpm -C apps/mobile exec eslint src/services/api/index.ts src/services/api/types.ts src/services/marketData.ts app/(tabs)/portfolio.tsx`
+  - `pnpm -C apps/mobile exec eslint src/screens/OnboardingStep2Screen.tsx src/screens/OnboardingCompleteScreen.tsx`
   - `pnpm -C apps/mobile run compile`
   - `pnpm -C apps/mobile exec eslint src/services/marketData.ts app/(tabs)/home.tsx app/(tabs)/portfolio.tsx src/config/config.dev.ts src/config/config.prod.ts`
   - `pnpm -C apps/mobile exec eslint src/services/marketData.ts src/config/config.dev.ts src/config/config.prod.ts app/(tabs)/home.tsx app/(tabs)/portfolio.tsx`

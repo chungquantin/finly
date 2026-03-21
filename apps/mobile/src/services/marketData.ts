@@ -1,46 +1,42 @@
 import { useEffect, useMemo, useState } from "react"
 
 import Config from "@/config"
-
-export type MarketDataQuote = {
-  ticker: string
-  price: number
-  change_pct: number
-  currency: string
-}
+import { api } from "@/services/api"
+import type { MarketDataQuote } from "@/services/api/types"
 
 type MarketDataState = {
   quotes: Record<string, MarketDataQuote>
   isLoading: boolean
+  hasLiveQuotes: boolean
 }
 
 const MARKET_DATA_URL = resolveMarketDataUrl()
+const QUOTE_REFRESH_MS = 30000
 
 export async function fetchMarketData(tickers: string[]): Promise<MarketDataQuote[]> {
   if (!MARKET_DATA_URL) {
     return []
   }
-
-  const params = new URLSearchParams({ tickers: tickers.join(",") })
-  const response = await fetch(`${MARKET_DATA_URL}/api/market-data?${params.toString()}`)
-
-  if (!response.ok) {
-    throw new Error(`Market data request failed with status ${response.status}`)
+  const result = await api.getMarketData(tickers)
+  if (result.kind !== "ok") {
+    throw new Error(`Market data request failed: ${result.kind}`)
   }
-
-  return (await response.json()) as MarketDataQuote[]
+  return result.quotes
 }
 
 export function useMarketData(tickers: string[]): MarketDataState {
   const [quotes, setQuotes] = useState<Record<string, MarketDataQuote>>({})
   const [isLoading, setIsLoading] = useState(false)
-  const tickerKey = useMemo(() => tickers.join(","), [tickers])
-  const stableTickers = useMemo(() => tickerKey.split(",").filter(Boolean), [tickerKey])
+  const tickerKey = useMemo(
+    () => Array.from(new Set(tickers.map((ticker) => ticker.trim().toUpperCase()).filter(Boolean))).join(","),
+    [tickers],
+  )
+  const stableTickers = useMemo(() => (tickerKey ? tickerKey.split(",") : []), [tickerKey])
 
   useEffect(() => {
     let isActive = true
 
-    if (!stableTickers.length) {
+    if (!tickerKey) {
       setQuotes({})
       return
     }
@@ -50,10 +46,10 @@ export function useMarketData(tickers: string[]): MarketDataState {
       return
     }
 
-    setIsLoading(true)
-
-    fetchMarketData(stableTickers)
-      .then((items) => {
+    const fetchQuotes = async () => {
+      setIsLoading(true)
+      try {
+        const items = await fetchMarketData(stableTickers)
         if (!isActive) return
 
         const nextQuotes = items.reduce<Record<string, MarketDataQuote>>((acc, item) => {
@@ -62,21 +58,24 @@ export function useMarketData(tickers: string[]): MarketDataState {
         }, {})
 
         setQuotes(nextQuotes)
-      })
-      .catch(() => {
+      } catch {
         if (!isActive) return
         setQuotes({})
-      })
-      .finally(() => {
+      } finally {
         if (isActive) setIsLoading(false)
-      })
+      }
+    }
+
+    fetchQuotes()
+    const timer = setInterval(fetchQuotes, QUOTE_REFRESH_MS)
 
     return () => {
       isActive = false
+      clearInterval(timer)
     }
-  }, [stableTickers])
+  }, [tickerKey])
 
-  return { quotes, isLoading }
+  return { quotes, isLoading, hasLiveQuotes: Object.keys(quotes).length > 0 }
 }
 
 function resolveMarketDataUrl() {

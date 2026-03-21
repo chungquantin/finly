@@ -12,6 +12,8 @@ import type {
   ChatResponse,
   IntakeRequest,
   IntakeResponse,
+  MarketHistoryBatchResponse,
+  MarketDataQuote,
   OnboardingRequest,
   OnboardingResponse,
   PanelHistoryMessage,
@@ -104,6 +106,45 @@ export class Api {
       if (problem) return problem
     }
     return { kind: "ok", portfolio: response.data! }
+  }
+
+  async getMarketData(
+    tickers: string[],
+  ): Promise<{ kind: "ok"; quotes: MarketDataQuote[] } | GeneralApiProblem> {
+    const query = new URLSearchParams({
+      tickers: tickers.join(","),
+    })
+    const response: ApiResponse<MarketDataQuote[]> = await this.apisauce.get(
+      `/api/market-data?${query.toString()}`,
+    )
+    if (!response.ok) {
+      const problem = getGeneralApiProblem(response)
+      if (problem) return problem
+    }
+    return { kind: "ok", quotes: response.data ?? [] }
+  }
+
+  async getMarketDataHistoryBatch(
+    tickers: string[],
+    period = "1mo",
+    interval = "1d",
+  ): Promise<{ kind: "ok"; history: MarketHistoryBatchResponse } | GeneralApiProblem> {
+    const query = new URLSearchParams({
+      tickers: tickers.join(","),
+      period,
+      interval,
+    })
+    const response: ApiResponse<MarketHistoryBatchResponse> = await this.apisauce.get(
+      `/api/market-data/history/batch?${query.toString()}`,
+    )
+    if (!response.ok) {
+      const problem = getGeneralApiProblem(response)
+      if (problem) return problem
+    }
+    return {
+      kind: "ok",
+      history: response.data ?? { period, interval, results: {} },
+    }
   }
 
   // -----------------------------------------------------------------------

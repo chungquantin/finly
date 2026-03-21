@@ -1,4 +1,5 @@
 /* eslint-disable no-restricted-imports */
+import { useMemo } from "react"
 import { Pressable, Text, View, ViewStyle } from "react-native"
 import { useRouter } from "expo-router"
 import { MotiView } from "moti"
@@ -7,8 +8,9 @@ import { AiryScreenShell } from "../components/AiryScreenShell"
 import { IosHeader } from "../components/IosHeader"
 import { TickerLogoStack } from "../components/TickerLogoStack"
 import { cn } from "../lib/utils"
+import { useMarketData } from "../services/marketData"
 import { useOnboardingStore } from "../stores/onboardingStore"
-import { MOCK_STOCK_ACCOUNTS } from "../utils/mockStockAccounts"
+import { MOCK_STOCK_ACCOUNTS, getMockStockAccountHoldings } from "../utils/mockStockAccounts"
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-US", {
@@ -22,6 +24,18 @@ export function OnboardingStep2Screen() {
 
   const stockAccountId = useOnboardingStore((state) => state.stockAccountId)
   const setStockAccountId = useOnboardingStore((state) => state.setStockAccountId)
+  const allTickers = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          MOCK_STOCK_ACCOUNTS.flatMap((account) =>
+            getMockStockAccountHoldings(account).map((holding) => holding.ticker.toUpperCase()),
+          ),
+        ),
+      ),
+    [],
+  )
+  const { quotes, isLoading, hasLiveQuotes } = useMarketData(allTickers)
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -71,10 +85,15 @@ export function OnboardingStep2Screen() {
         >
           <View className="mt-4 gap-4">
             {MOCK_STOCK_ACCOUNTS.map((account) => {
+              const holdings = getMockStockAccountHoldings(account)
               const selected = stockAccountId === account.id
-              const totalValue = account.holdings.reduce(
-                (sum, holding) => sum + holding.quantity * holding.avg_cost,
-                0,
+              const totalValue = holdings.reduce((sum, holding) => {
+                const quote = quotes[holding.ticker.toUpperCase()]
+                const price = quote?.price ?? holding.avg_cost
+                return sum + holding.quantity * price
+              }, 0)
+              const hasAnyLiveQuote = holdings.some((holding) =>
+                Boolean(quotes[holding.ticker.toUpperCase()]),
               )
 
               return (
@@ -94,10 +113,17 @@ export function OnboardingStep2Screen() {
                         {account.name}
                       </Text>
                       <Text className="font-sans mt-1 text-[14px] text-[#6B7280]">
-                        {account.provider} · {account.holdings.length} tickers
+                        {account.provider} · {holdings.length} tickers
                       </Text>
                       <Text className="font-sans mt-0.5 text-[14px] font-semibold text-[#0F1728]">
                         {money(totalValue)}
+                      </Text>
+                      <Text className="font-sans mt-1 text-[12px] text-[#6B7280]">
+                        {isLoading
+                          ? "Loading live quotes..."
+                          : hasAnyLiveQuote
+                            ? "Live market value"
+                            : "Estimated from account cost basis"}
                       </Text>
                     </View>
 
@@ -115,6 +141,14 @@ export function OnboardingStep2Screen() {
             })}
           </View>
         </MotiView>
+
+        <Text className="font-sans mt-3 text-center text-[12px] text-[#8E8E93]">
+          {isLoading
+            ? "Fetching market data..."
+            : hasLiveQuotes
+              ? "Using live market data for supported tickers."
+              : "Live quotes unavailable. Showing fallback values."}
+        </Text>
 
         <MotiView
           from={{ opacity: 0, translateY: 14 }}

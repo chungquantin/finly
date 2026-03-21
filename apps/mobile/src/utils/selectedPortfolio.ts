@@ -26,6 +26,13 @@ type SelectedPortfolioSnapshot = {
 
 type SelectedPortfolioData = {
   holdings: SelectedHolding[]
+  transactions: {
+    ticker: string
+    side: "buy" | "sell"
+    quantity: number
+    price: number
+    executedAt: string
+  }[]
   snapshot: SelectedPortfolioSnapshot
 }
 
@@ -67,6 +74,52 @@ const estimateChangePercent = (ticker: string) => {
   return round((hash % 520) / 100 - 1.6)
 }
 
+const aggregateLotsToHoldings = (
+  transactions: {
+    ticker: string
+    side: "buy" | "sell"
+    quantity: number
+    price: number
+    assetType: string
+  }[],
+) => {
+  const acc = new Map<string, { quantity: number; costBasis: number }>()
+
+  for (const transaction of transactions) {
+    if (transaction.assetType !== "stock") continue
+    const ticker = transaction.ticker.toUpperCase()
+    const current = acc.get(ticker) ?? { quantity: 0, costBasis: 0 }
+    const quantity = Math.max(transaction.quantity, 0)
+
+    if (transaction.side === "buy") {
+      current.quantity += quantity
+      current.costBasis += quantity * transaction.price
+    } else if (current.quantity > 0) {
+      const sellQuantity = Math.min(quantity, current.quantity)
+      const averageCost = current.costBasis / current.quantity
+      current.quantity -= sellQuantity
+      current.costBasis = Math.max(0, current.costBasis - averageCost * sellQuantity)
+    }
+
+    acc.set(ticker, current)
+  }
+
+  return Array.from(acc.entries())
+    .map(([ticker, value]) => {
+      if (value.quantity <= 0) return null
+      return {
+        ticker,
+        quantity: round(value.quantity),
+        avgCost: value.costBasis / value.quantity,
+        costBasis: value.costBasis,
+      }
+    })
+    .filter(
+      (item): item is { ticker: string; quantity: number; avgCost: number; costBasis: number } =>
+        Boolean(item),
+    )
+}
+
 export const useSelectedPortfolioData = (): SelectedPortfolioData => {
   const portfolioType = useOnboardingStore((state) => state.portfolioType)
   const stockAccountId = useOnboardingStore((state) => state.stockAccountId)
@@ -79,6 +132,7 @@ export const useSelectedPortfolioData = (): SelectedPortfolioData => {
     if (!account) {
       return {
         holdings: [],
+        transactions: [],
         snapshot: {
           totalValueUsd: 0,
           dailyPnlUsd: 0,
@@ -91,9 +145,28 @@ export const useSelectedPortfolioData = (): SelectedPortfolioData => {
       }
     }
 
-    const enriched = account.holdings.map((holding) => {
+    const transactions = [...account.transactions]
+      .sort((left, right) => left.executed_at.localeCompare(right.executed_at))
+      .map((transaction) => ({
+        ticker: transaction.ticker.toUpperCase(),
+        side: transaction.side,
+        quantity: transaction.quantity,
+        price: transaction.price,
+        executedAt: transaction.executed_at,
+      }))
+    const aggregatedHoldings = aggregateLotsToHoldings(
+      account.transactions.map((transaction) => ({
+        ticker: transaction.ticker,
+        side: transaction.side,
+        quantity: transaction.quantity,
+        price: transaction.price,
+        assetType: transaction.asset_type,
+      })),
+    )
+
+    const enriched = aggregatedHoldings.map((holding) => {
       const changePercent = estimateChangePercent(holding.ticker)
-      const costBasis = holding.quantity * holding.avg_cost
+      const costBasis = holding.costBasis
       const valueUsd = round(costBasis * (1 + changePercent / 100))
 
       return {
@@ -109,7 +182,7 @@ export const useSelectedPortfolioData = (): SelectedPortfolioData => {
 
     const totalValueUsd = enriched.reduce((sum, holding) => sum + holding.valueUsd, 0)
     const investedUsd = round(
-      account.holdings.reduce((sum, holding) => sum + holding.quantity * holding.avg_cost, 0),
+      aggregatedHoldings.reduce((sum, holding) => sum + holding.costBasis, 0),
     )
     const holdings = enriched.map((holding) => ({
       ...holding,
@@ -127,6 +200,7 @@ export const useSelectedPortfolioData = (): SelectedPortfolioData => {
 
     return {
       holdings,
+      transactions,
       snapshot: {
         totalValueUsd: round(totalValueUsd),
         dailyPnlUsd,

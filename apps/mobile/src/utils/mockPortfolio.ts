@@ -1,4 +1,4 @@
-import { getMockStockAccountById } from "./mockStockAccounts"
+import { getMockStockAccountById, getMockStockAccountHoldings } from "./mockStockAccounts"
 import type {
   FinancialKnowledge,
   InvestmentHorizon,
@@ -85,8 +85,9 @@ export const buildMockPortfolio = (input: SeedInput): MockPortfolio => {
     horizonWeights[input.investmentHorizon] *
     knowledgeWeights[input.financialKnowledge]
   const stockAccount = getMockStockAccountById(input.stockAccountId)
+  const stockHoldings = stockAccount ? getMockStockAccountHoldings(stockAccount) : []
   const stockCostBasis = stockAccount
-    ? stockAccount.holdings.reduce((sum, holding) => sum + holding.quantity * holding.avg_cost, 0)
+    ? stockHoldings.reduce((sum, holding) => sum + holding.quantity * holding.avg_cost, 0)
     : null
   const marketTilt = ((seed % 19) - 9) / 1000
   const profileTilt = (weighted - 1) * 0.03
