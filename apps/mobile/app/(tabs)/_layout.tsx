@@ -1,12 +1,9 @@
 /* eslint-disable no-restricted-imports */
-import { View } from "react-native"
 import { Tabs } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 
-const ACTIVE_BLUE = "#2453FF"
-const INACTIVE_SURFACE = "#F3F6FC"
-const INACTIVE_ICON = "#7A8699"
-const LABEL_INACTIVE = "#6B7586"
+const ICON_BLACK = "#0F1728"
+const LABEL_INACTIVE = "#0F1728"
 const LABEL_ACTIVE = "#0F1728"
 
 type TabIconProps = {
@@ -18,14 +15,7 @@ type TabIconProps = {
 function TabIcon({ focused, activeIcon, inactiveIcon }: TabIconProps) {
   const iconName = focused ? activeIcon : (inactiveIcon ?? activeIcon)
 
-  return (
-    <View
-      className="rounded-full p-2.5"
-      style={{ backgroundColor: focused ? ACTIVE_BLUE : INACTIVE_SURFACE }}
-    >
-      <Ionicons name={iconName} size={18} color={focused ? "#FFFFFF" : INACTIVE_ICON} />
-    </View>
-  )
+  return <Ionicons name={iconName} size={22} color={ICON_BLACK} />
 }
 
 export default function TabsLayout() {
