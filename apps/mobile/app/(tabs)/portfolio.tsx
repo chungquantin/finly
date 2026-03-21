@@ -7,7 +7,9 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { IosHeader } from "@/components/IosHeader"
 import { TickerLogo } from "@/components/TickerLogo"
 import { useMarketData } from "@/services/marketData"
+import { useAgentBoardStore } from "@/stores/agentBoardStore"
 import { useSelectedPortfolioData } from "@/utils/selectedPortfolio"
+import { getTickerLogoUri } from "@/utils/tickerLogo"
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-US", {
@@ -35,12 +37,17 @@ const sortLabels = {
 } as const
 
 type HoldingsSort = keyof typeof sortLabels
+type AssetTab = "assets" | "watchlist"
 
 export default function PortfolioTab() {
   const router = useRouter()
+  const [assetTab, setAssetTab] = useState<AssetTab>("assets")
   const [sortBy, setSortBy] = useState<HoldingsSort>("value")
   const { holdings, snapshot: portfolioSnapshot } = useSelectedPortfolioData()
-  const { quotes } = useMarketData(holdings.map((holding) => holding.ticker))
+  const boardThreads = useAgentBoardStore((state) => state.threads)
+  const { quotes, isLoading, hasLiveQuotes } = useMarketData(
+    holdings.map((holding) => holding.ticker),
+  )
   const enrichedHoldings = useMemo(
     () =>
       holdings.map((holding) => {
@@ -91,13 +98,70 @@ export default function PortfolioTab() {
         return nextHoldings.sort((left, right) => right.valueUsd - left.valueUsd)
     }
   }, [enrichedHoldings, sortBy])
+  const watchlistRows = useMemo(() => {
+    const heldTickers = new Set(enrichedHoldings.map((holding) => holding.ticker))
+    const latestThreadByTicker = new Map<
+      string,
+      {
+        id: string
+        ticker: string
+        summary: string
+        updatedAt: string
+      }
+    >()
+
+    boardThreads.forEach((thread) => {
+      if (thread.ticker === "BOARD" || heldTickers.has(thread.ticker)) return
+
+      const current = latestThreadByTicker.get(thread.ticker)
+      const nextTimestamp = new Date(thread.updatedAt).getTime()
+      const currentTimestamp = current
+        ? new Date(current.updatedAt).getTime()
+        : Number.NEGATIVE_INFINITY
+
+      if (!current || nextTimestamp >= currentTimestamp) {
+        latestThreadByTicker.set(thread.ticker, {
+          id: thread.id,
+          ticker: thread.ticker,
+          summary: thread.summary || thread.intake || "Board conversation available",
+          updatedAt: thread.updatedAt,
+        })
+      }
+    })
+
+    return Array.from(latestThreadByTicker.values())
+      .map((item) => {
+        const liveQuote = quotes[item.ticker]
+        return {
+          ...item,
+          valueUsd: liveQuote?.price ?? null,
+          changePercent: liveQuote?.change_pct ?? null,
+        }
+      })
+      .sort(
+        (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
+      )
+  }, [boardThreads, enrichedHoldings, quotes])
 
   return (
     <SafeAreaView className="flex-1 bg-[#FBFCFF]">
       <ScrollView className="flex-1" contentContainerStyle={$scrollContent}>
-        <IosHeader title="Portfolio" titleClassName="text-[20px] leading-[24px]" />
+        <IosHeader title="Assets" titleClassName="text-[20px] leading-[24px]" />
 
         <View className="px-4">
+          <View className="mb-3 mt-1 flex-row gap-2">
+            <SegmentTab
+              active={assetTab === "assets"}
+              label="Assets"
+              onPress={() => setAssetTab("assets")}
+            />
+            <SegmentTab
+              active={assetTab === "watchlist"}
+              label="Watchlist"
+              onPress={() => setAssetTab("watchlist")}
+            />
+          </View>
+
           <View className="rounded-[30px] border border-[#EEF2F7] bg-white p-5">
             <Text className="font-sans text-[13px] font-semibold tracking-[1.2px] text-[#7A8699]">
               PROFIT / LOSS
@@ -135,79 +199,167 @@ export default function PortfolioTab() {
                 Day&apos;s Gain/Loss
               </Text>
             </View>
+
+            <View className="mt-5 flex-row gap-2">
+              <Tag label={`${enrichedHoldings.length} assets`} />
+              <Tag label={`${money(portfolioSnapshot.cashUsd)} cash`} />
+              <Tag
+                label={
+                  isLoading
+                    ? "Loading quotes..."
+                    : hasLiveQuotes
+                      ? "Live quotes"
+                      : "Using fallback quotes"
+                }
+              />
+            </View>
           </View>
 
           <View className="mt-4 rounded-[30px] border border-[#EEF2F7] bg-white p-4">
             <View className="flex-row items-center justify-between">
-              <Text className="font-sans text-[24px] font-semibold text-[#0F1728]">Holdings</Text>
-              <Text className="font-sans text-[14px] text-[#7A8699]">
-                Sorted by {sortLabels[sortBy].toLowerCase()}
+              <Text className="font-sans text-[24px] font-semibold text-[#0F1728]">
+                {assetTab === "assets" ? "Assets" : "Watchlist"}
               </Text>
+              {assetTab === "assets" ? (
+                <Text className="font-sans text-[14px] text-[#7A8699]">
+                  Sorted by {sortLabels[sortBy].toLowerCase()}
+                </Text>
+              ) : (
+                <Text className="font-sans text-[14px] text-[#7A8699]">
+                  Sorted by latest board update
+                </Text>
+              )}
             </View>
 
-            <View className="mt-4 flex-row flex-wrap gap-2">
-              {(Object.entries(sortLabels) as [HoldingsSort, string][]).map(([key, label]) => {
-                const isActive = key === sortBy
+            {assetTab === "assets" ? (
+              <>
+                <View className="mt-4 flex-row flex-wrap gap-2">
+                  {(Object.entries(sortLabels) as [HoldingsSort, string][]).map(([key, label]) => {
+                    const isActive = key === sortBy
 
-                return (
+                    return (
+                      <Pressable
+                        key={key}
+                        className={`rounded-full border px-4 py-2 ${
+                          isActive
+                            ? "border-[#2453FF] bg-[#2453FF]"
+                            : "border-[#E6EAF2] bg-[#F6F8FF]"
+                        }`}
+                        onPress={() => setSortBy(key)}
+                      >
+                        <Text
+                          className={`font-sans text-[13px] ${isActive ? "text-white" : "text-[#6B7586]"}`}
+                        >
+                          {label}
+                        </Text>
+                      </Pressable>
+                    )
+                  })}
+                </View>
+
+                {sortedHoldings.map((holding) => (
                   <Pressable
-                    key={key}
-                    className={`rounded-full border px-4 py-2 ${
-                      isActive ? "border-[#2453FF] bg-[#2453FF]" : "border-[#E6EAF2] bg-[#F6F8FF]"
-                    }`}
-                    onPress={() => setSortBy(key)}
+                    key={holding.ticker}
+                    className="border-b border-[#EEF2F7] py-4 last:border-b-0"
+                    onPress={() => router.push(`/holding/${holding.ticker}`)}
                   >
-                    <Text
-                      className={`font-sans text-[13px] ${isActive ? "text-white" : "text-[#6B7586]"}`}
-                    >
-                      {label}
-                    </Text>
-                  </Pressable>
-                )
-              })}
-            </View>
-
-            {sortedHoldings.map((holding) => (
-              <Pressable
-                key={holding.ticker}
-                className="border-b border-[#EEF2F7] py-4 last:border-b-0"
-                onPress={() => router.push(`/holding/${holding.ticker}`)}
-              >
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center">
-                    <TickerLogo ticker={holding.ticker} logoUri={holding.logoUri} />
-                    <View className="ml-3">
-                      <Text className="font-sans text-[20px] font-semibold text-[#0F1728]">
-                        {holding.ticker}
+                    <View className="flex-row items-center justify-between">
+                      <View className="flex-row items-center">
+                        <TickerLogo ticker={holding.ticker} logoUri={holding.logoUri} />
+                        <View className="ml-3">
+                          <Text className="font-sans text-[20px] font-semibold text-[#0F1728]">
+                            {holding.ticker}
+                          </Text>
+                          <Text className="font-sans text-[15px] text-[#7A8699]">
+                            {holding.name}
+                          </Text>
+                        </View>
+                      </View>
+                      <View className="items-end">
+                        <Text className="font-sans text-[20px] font-semibold text-[#0F1728]">
+                          {money(holding.valueUsd)}
+                        </Text>
+                        <Text
+                          className={`font-sans text-[15px] ${holding.changePercent >= 0 ? "text-[#22B45A]" : "text-[#F04438]"}`}
+                        >
+                          {holding.changePercent >= 0 ? "+" : ""}
+                          {holding.changePercent}%
+                        </Text>
+                      </View>
+                    </View>
+                    <View className="mt-2 flex-row items-center justify-between">
+                      <Text className="font-sans text-[13px] text-[#7A8699]">
+                        {holding.shares} shares
                       </Text>
-                      <Text className="font-sans text-[15px] text-[#7A8699]">{holding.name}</Text>
+                      <View className="flex-row items-center">
+                        <Text className="font-sans text-[13px] text-[#7A8699]">
+                          Allocation {holding.allocationPercent}%
+                        </Text>
+                        <Text className="ml-2 font-sans text-[13px] text-[#2453FF]">
+                          View board
+                        </Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+              </>
+            ) : watchlistRows.length === 0 ? (
+              <View className="mt-4 rounded-[20px] bg-[#F6F8FF] p-4">
+                <Text className="font-sans text-[16px] font-semibold text-[#0F1728]">
+                  No watchlist names yet
+                </Text>
+                <Text className="mt-1 font-sans text-[14px] leading-6 text-[#7A8699]">
+                  Search stocks in Board. New reports for symbols you do not hold will appear here.
+                </Text>
+              </View>
+            ) : (
+              watchlistRows.map((item) => (
+                <Pressable
+                  key={item.ticker}
+                  className="border-b border-[#EEF2F7] py-4 last:border-b-0"
+                  onPress={() => router.push(`/thread/${item.id}`)}
+                >
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center">
+                      <TickerLogo ticker={item.ticker} logoUri={getTickerLogoUri(item.ticker)} />
+                      <View className="ml-3">
+                        <Text className="font-sans text-[20px] font-semibold text-[#0F1728]">
+                          {item.ticker}
+                        </Text>
+                        <Text className="font-sans text-[15px] text-[#7A8699]">Watchlist</Text>
+                      </View>
+                    </View>
+                    <View className="items-end">
+                      <Text className="font-sans text-[20px] font-semibold text-[#0F1728]">
+                        {item.valueUsd === null ? "--" : money(item.valueUsd)}
+                      </Text>
+                      <Text
+                        className={`font-sans text-[15px] ${
+                          item.changePercent === null
+                            ? "text-[#7A8699]"
+                            : item.changePercent >= 0
+                              ? "text-[#22B45A]"
+                              : "text-[#F04438]"
+                        }`}
+                      >
+                        {item.changePercent === null
+                          ? "No live quote"
+                          : `${item.changePercent >= 0 ? "+" : ""}${item.changePercent}%`}
+                      </Text>
                     </View>
                   </View>
-                  <View className="items-end">
-                    <Text className="font-sans text-[20px] font-semibold text-[#0F1728]">
-                      {money(holding.valueUsd)}
-                    </Text>
-                    <Text
-                      className={`font-sans text-[15px] ${holding.changePercent >= 0 ? "text-[#22B45A]" : "text-[#F04438]"}`}
-                    >
-                      {holding.changePercent >= 0 ? "+" : ""}
-                      {holding.changePercent}%
-                    </Text>
-                  </View>
-                </View>
-                <View className="mt-2 flex-row items-center justify-between">
-                  <Text className="font-sans text-[13px] text-[#7A8699]">
-                    {holding.shares} shares
-                  </Text>
-                  <View className="flex-row items-center">
-                    <Text className="font-sans text-[13px] text-[#7A8699]">
-                      Allocation {holding.allocationPercent}%
+                  <View className="mt-2 flex-row items-center justify-between">
+                    <Text className="mr-4 flex-1 font-sans text-[13px] text-[#7A8699]">
+                      {item.summary}
                     </Text>
                     <Text className="ml-2 font-sans text-[13px] text-[#2453FF]">View board</Text>
                   </View>
-                </View>
-              </Pressable>
-            ))}
+                  <Text className="mt-1 font-sans text-[13px] text-[#7A8699]">
+                    Added from board thread
+                  </Text>
+                </Pressable>
+              ))
+            )}
           </View>
         </View>
       </ScrollView>
@@ -215,6 +367,38 @@ export default function PortfolioTab() {
   )
 }
 
+function Tag({ label }: { label: string }) {
+  return (
+    <View className="rounded-full bg-[#F3F6FC] px-3 py-2">
+      <Text className="font-sans text-[13px] text-[#6B7586]">{label}</Text>
+    </View>
+  )
+}
+
+function SegmentTab({
+  active,
+  label,
+  onPress,
+}: {
+  active: boolean
+  label: string
+  onPress: () => void
+}) {
+  return (
+    <Pressable
+      className={`rounded-full border px-4 py-1.5 ${
+        active ? "border-[#2453FF] bg-[#2453FF]" : "border-[#E6EAF2] bg-white"
+      }`}
+      onPress={onPress}
+    >
+      <Text
+        className={`font-sans text-[12px] font-semibold ${active ? "text-white" : "text-[#6B7586]"}`}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  )
+}
 const $scrollContent = {
   paddingBottom: 120,
 }

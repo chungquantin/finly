@@ -57,11 +57,13 @@ The current app does not expose the requested bottom-tab IA or the central board
 - 2026-03-21: Normalized badge/tag/status text rendering onto the shared mobile `Text` primitive and added an explicit web system font family to stop serif fallback on pills and chip labels.
 - 2026-03-21: Split Board into a thread inbox and a dedicated thread-detail route, backed by mock per-thread conversation data.
 - 2026-03-21: Added holding detail route with board decision, intake summary, rationale, and related thread links, and made Portfolio holdings navigable into that detail view.
+- 2026-03-21: Updated Portfolio tab copy and IA from `Holdings` to `Assets`, moved the `Assets | Watchlist` segmented tabs directly under the header, and restyled watchlist rows to match holding-card structure without showing share counts.
 
 ## Verification
 
 - Commands run:
   - `pnpm -C apps/mobile run compile`
+  - `pnpm -C apps/mobile exec eslint app/(tabs)/portfolio.tsx`
 - Manual checks:
   - Navigation wiring reviewed: Home card/avatar press -> `/agent/[id]`.
   - Tab IA reviewed: Home, Portfolio, Board, Settings all have dedicated route files.
