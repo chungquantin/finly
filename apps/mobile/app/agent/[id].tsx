@@ -1,9 +1,10 @@
 /* eslint-disable no-restricted-imports */
-import { Pressable, ScrollView, Text, View } from "react-native"
+import { Pressable, ScrollView, View } from "react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { IosHeader } from "@/components/IosHeader"
+import { Text } from "@/components/Text"
 import { getRandomAgentAvatar } from "@/utils/agentAvatars"
 import { teamAgents } from "@/utils/mockAppData"
 
@@ -143,7 +144,7 @@ function Badge({
 }) {
   return (
     <View className="rounded-full px-3 py-2" style={{ backgroundColor }}>
-      <Text className="text-[13px] font-semibold capitalize" style={{ color: textColor }}>
+      <Text className="text-[13px] capitalize" style={{ color: textColor }} weight="semiBold">
         {label}
       </Text>
     </View>
@@ -166,7 +167,9 @@ function TagList({ items }: { items: string[] }) {
     <View className="mt-4 flex-row flex-wrap gap-2">
       {items.map((item) => (
         <View key={item} className="rounded-full bg-[#F3F5FA] px-3 py-2">
-          <Text className="text-[13px] text-[#445065]">{item}</Text>
+          <Text className="text-[13px] text-[#445065]" weight="medium">
+            {item}
+          </Text>
         </View>
       ))}
     </View>

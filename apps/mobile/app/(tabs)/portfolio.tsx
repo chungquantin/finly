@@ -1,12 +1,12 @@
 /* eslint-disable no-restricted-imports */
 import { useMemo, useState } from "react"
-import { Pressable, ScrollView, Text, View } from "react-native"
+import { Pressable, ScrollView, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { IosHeader } from "@/components/IosHeader"
+import { Text } from "@/components/Text"
 import { TickerLogo } from "@/components/TickerLogo"
 import { useMarketData } from "@/services/marketData"
-import { typography } from "@/theme/typography"
 import { holdings, portfolioSnapshot } from "@/utils/mockAppData"
 
 const money = (value: number) =>
@@ -121,7 +121,7 @@ export default function PortfolioTab() {
                   >
                     <Text
                       className={`text-[13px] ${isActive ? "text-white" : "text-[#6B7280]"}`}
-                      style={{ fontFamily: typography.primary.medium }}
+                      weight="medium"
                     >
                       {label}
                     </Text>
@@ -172,10 +172,7 @@ export default function PortfolioTab() {
 function Tag({ label }: { label: string }) {
   return (
     <View className="rounded-full bg-[#F3F5FA] px-3 py-2">
-      <Text
-        className="text-[13px] text-[#6B7280]"
-        style={{ fontFamily: typography.primary.medium }}
-      >
+      <Text className="text-[13px] text-[#6B7280]" weight="medium">
         {label}
       </Text>
     </View>

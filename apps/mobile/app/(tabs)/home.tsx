@@ -1,9 +1,10 @@
 /* eslint-disable no-restricted-imports */
 import { useMemo } from "react"
-import { Pressable, ScrollView, Text, View } from "react-native"
+import { Pressable, ScrollView, View } from "react-native"
 import { useRouter } from "expo-router"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import { Text } from "@/components/Text"
 import { TickerLogo } from "@/components/TickerLogo"
 import { useMarketData } from "@/services/marketData"
 import { useOnboardingStore } from "@/stores/onboardingStore"
@@ -140,11 +141,15 @@ function AgentCard({
         </View>
         <View className="flex-row items-center rounded-full bg-[#F4F7FC] px-2.5 py-1">
           <View className={`mr-1.5 h-2 w-2 rounded-full ${statusDotClassName(agent.status)}`} />
-          <Text className="text-[11px] font-medium capitalize text-[#5F6B7A]">{agent.status}</Text>
+          <Text className="text-[11px] capitalize text-[#5F6B7A]" weight="medium">
+            {agent.status}
+          </Text>
         </View>
       </View>
 
-      <Text className="mt-3 text-[18px] font-semibold text-[#111111]">{agent.name}</Text>
+      <Text className="mt-3 text-[18px] text-[#111111]" weight="semiBold">
+        {agent.name}
+      </Text>
       <Text className="mt-1 text-[14px] leading-5 text-[#8E8E93]">{agent.role}</Text>
 
       <View className="mt-3 rounded-[18px] rounded-tl-[6px] bg-[#F5F7FB] px-3 py-3">

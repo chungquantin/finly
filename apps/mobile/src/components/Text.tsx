@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-imports */
 import { ReactNode, forwardRef, ForwardedRef } from "react"
 import * as ReactNative from "react-native"
-import { Platform, StyleProp, TextProps as RNTextProps, TextStyle } from "react-native"
+import { StyleProp, TextProps as RNTextProps, TextStyle } from "react-native"
 import { TOptions } from "i18next"
 
 import { isRTL, TxKeyPath } from "@/i18n"
@@ -101,10 +101,12 @@ const iosFontWeights: Record<Weights, TextStyle["fontWeight"]> = {
   bold: "700",
 }
 
+const systemFontFamilies = new Set(["System", "system-ui"])
+
 const $fontWeightStyles = Object.entries(typography.primary).reduce((acc, [weight, fontFamily]) => {
   const textStyle: TextStyle = { fontFamily }
 
-  if (Platform.OS === "ios" && fontFamily === "System") {
+  if (systemFontFamilies.has(fontFamily)) {
     textStyle.fontWeight = iosFontWeights[weight as Weights]
   }
 

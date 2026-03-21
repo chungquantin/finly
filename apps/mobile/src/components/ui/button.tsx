@@ -1,11 +1,11 @@
 /* eslint-disable no-restricted-imports */
 // eslint-disable-next-line no-restricted-imports
 import type { ComponentPropsWithoutRef } from "react"
-import { Pressable, Text } from "react-native"
+import { Pressable } from "react-native"
 import { cva, type VariantProps } from "class-variance-authority"
 
+import { Text } from "@/components/Text"
 import { cn } from "@/lib/utils"
-import { typography } from "@/theme/typography"
 
 const buttonVariants = cva("items-center justify-center rounded-full px-5 py-3 active:opacity-90", {
   variants: {
@@ -54,10 +54,7 @@ type ButtonProps = ComponentPropsWithoutRef<typeof Pressable> &
 export function Button({ className, textClassName, variant, size, label, ...props }: ButtonProps) {
   return (
     <Pressable className={cn(buttonVariants({ variant, size }), className)} {...props}>
-      <Text
-        className={cn(buttonTextVariants({ variant, size }), textClassName)}
-        style={{ fontFamily: typography.primary.semiBold }}
-      >
+      <Text className={cn(buttonTextVariants({ variant, size }), textClassName)} weight="semiBold">
         {label}
       </Text>
     </Pressable>

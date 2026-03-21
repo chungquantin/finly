@@ -1,8 +1,8 @@
 /* eslint-disable no-restricted-imports */
 import { useState } from "react"
-import { Image, Text, View } from "react-native"
+import { Image, View } from "react-native"
 
-import { typography } from "@/theme/typography"
+import { Text } from "@/components/Text"
 
 type TickerLogoProps = {
   ticker: string
@@ -39,7 +39,7 @@ export function TickerLogo({ ticker, logoUri }: TickerLogoProps) {
       >
         <Text
           className={`text-[15px] ${useDarkBadge ? "text-white" : "text-[#2453FF]"}`}
-          style={{ fontFamily: typography.primary.semiBold }}
+          weight="semiBold"
         >
           {ticker.slice(0, 2)}
         </Text>

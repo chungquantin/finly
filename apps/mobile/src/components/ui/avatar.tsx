@@ -1,9 +1,9 @@
 /* eslint-disable no-restricted-imports */
 // eslint-disable-next-line no-restricted-imports
-import { Text, View, type ViewProps } from "react-native"
+import { View, type ViewProps } from "react-native"
 
+import { Text } from "@/components/Text"
 import { cn } from "@/lib/utils"
-import { typography } from "@/theme/typography"
 
 type AvatarProps = ViewProps & {
   className?: string
@@ -19,7 +19,7 @@ export function Avatar({ className, label, ...props }: AvatarProps) {
       )}
       {...props}
     >
-      <Text className="text-xs text-ink" style={{ fontFamily: typography.primary.semiBold }}>
+      <Text className="text-xs text-ink" weight="semiBold">
         {label}
       </Text>
     </View>

@@ -4,12 +4,16 @@ export const customFontsToLoad = {}
 
 const fonts = {
   systemSans: {
-    // Use the native system sans family so iOS renders with San Francisco.
-    light: Platform.select({ ios: "System", android: "sans-serif-light" })!,
-    normal: Platform.select({ ios: "System", android: "sans-serif" })!,
-    medium: Platform.select({ ios: "System", android: "sans-serif-medium" })!,
-    semiBold: Platform.select({ ios: "System", android: "sans-serif-medium" })!,
-    bold: Platform.select({ ios: "System", android: "sans-serif" })!,
+    // Use the platform system sans family so native and web stay visually aligned.
+    light: Platform.select({ ios: "System", android: "sans-serif-light", web: "system-ui" })!,
+    normal: Platform.select({ ios: "System", android: "sans-serif", web: "system-ui" })!,
+    medium: Platform.select({ ios: "System", android: "sans-serif-medium", web: "system-ui" })!,
+    semiBold: Platform.select({
+      ios: "System",
+      android: "sans-serif-medium",
+      web: "system-ui",
+    })!,
+    bold: Platform.select({ ios: "System", android: "sans-serif", web: "system-ui" })!,
   },
   helveticaNeue: {
     // iOS only font.
