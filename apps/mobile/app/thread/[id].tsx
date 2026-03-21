@@ -14,8 +14,9 @@ import { useLocalSearchParams, useRouter } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import { TickerLogo } from "@/components/TickerLogo"
 import { getRandomAgentAvatar } from "@/utils/agentAvatars"
-import { boardThreads, teamAgents } from "@/utils/mockAppData"
+import { boardThreads, holdings, teamAgents } from "@/utils/mockAppData"
 
 const BLUE = "#2453FF"
 const BLUE_SURFACE = "#F4F7FF"
@@ -23,23 +24,59 @@ const BORDER = "#EEF2F7"
 
 export default function ThreadDetailRoute() {
   const router = useRouter()
-  const { id } = useLocalSearchParams<{ id: string }>()
+  const { id, title, ticker, intake, message } = useLocalSearchParams<{
+    id: string
+    title?: string
+    ticker?: string
+    intake?: string
+    message?: string
+  }>()
   const scrollViewRef = useRef<ScrollViewType>(null)
   const thread = useMemo(() => boardThreads.find((item) => item.id === id), [id])
-  const [messages, setMessages] = useState(thread?.messages ?? [])
+  const resolvedThread = useMemo(
+    () =>
+      thread ?? {
+        id: id ?? "custom-thread",
+        title: title ?? "New board conversation",
+        ticker: ticker ?? "BOARD",
+        decision: "Position" as const,
+        intake: intake ?? "New user-led board question",
+        summary: message ?? "",
+        updatedAt: "now",
+        unreadCount: 0,
+        participantAgentIds: ["portfolio-manager", "market-analyst", "risk-assessor"],
+        messages: message
+          ? [
+              {
+                id: "1",
+                author: "You",
+                role: "user" as const,
+                avatar: "YU",
+                message,
+                time: new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              },
+            ]
+          : [],
+      },
+    [id, intake, message, thread, ticker, title],
+  )
+  const [messages, setMessages] = useState(resolvedThread.messages)
   const [draft, setDraft] = useState("")
   const [isOptionsVisible, setIsOptionsVisible] = useState(false)
   const canSend = draft.trim().length > 0
 
   useEffect(() => {
-    setMessages(thread?.messages ?? [])
-  }, [thread])
+    setMessages(resolvedThread.messages)
+  }, [resolvedThread])
 
   useEffect(() => {
     scrollViewRef.current?.scrollToEnd({ animated: true })
   }, [messages])
 
-  if (!thread) {
+  if (!resolvedThread) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-white px-6">
         <Text className="font-sans text-[28px] font-semibold text-[#0F1728]">Thread not found</Text>
@@ -53,10 +90,11 @@ export default function ThreadDetailRoute() {
     )
   }
 
-  const participantAvatars = thread.participantAgentIds.map((agentId) => ({
+  const participantAvatars = resolvedThread.participantAgentIds.map((agentId) => ({
     id: agentId,
     avatar: getRandomAgentAvatar(agentId),
   }))
+  const threadHolding = holdings.find((holding) => holding.ticker === resolvedThread.ticker)
 
   const handleSend = () => {
     const nextMessage = draft.trim()
@@ -93,17 +131,20 @@ export default function ThreadDetailRoute() {
             </Pressable>
 
             <View className="ml-3 flex-1 flex-row items-center">
-              <View className="h-11 w-11 items-center justify-center rounded-full bg-[#2453FF]">
-                <Text className="font-sans text-[15px] font-semibold text-white">
-                  {thread.ticker}
-                </Text>
-              </View>
+              <TickerLogo
+                ticker={resolvedThread.ticker}
+                logoUri={threadHolding?.logoUri}
+                size={44}
+                textClassName="text-[13px]"
+              />
 
               <View className="ml-3 flex-1">
                 <Text className="font-sans text-[20px] font-semibold text-[#0F1728]">
-                  {thread.title}
+                  {resolvedThread.title}
                 </Text>
-                <Text className="font-sans text-[14px] text-[#7A8699]">{thread.intake}</Text>
+                <Text className="font-sans text-[14px] text-[#7A8699]">
+                  {resolvedThread.intake}
+                </Text>
               </View>
             </View>
 

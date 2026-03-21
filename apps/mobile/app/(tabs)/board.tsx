@@ -1,5 +1,6 @@
+import { useMemo, useState } from "react"
 /* eslint-disable no-restricted-imports */
-import { Pressable, ScrollView, Text, View } from "react-native"
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native"
 import { useRouter } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -9,7 +10,6 @@ import { getRandomAgentAvatar } from "@/utils/agentAvatars"
 import { boardThreads, holdings } from "@/utils/mockAppData"
 
 const BLUE = "#2453FF"
-const BLUE_SURFACE = "#F4F7FF"
 const BORDER = "#EEF2F7"
 
 const decisionColors = {
@@ -20,6 +20,69 @@ const decisionColors = {
 
 export default function BoardTab() {
   const router = useRouter()
+  const [threads, setThreads] = useState(boardThreads)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [draft, setDraft] = useState("")
+
+  const filteredThreads = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return threads
+
+    return threads.filter((thread) =>
+      [thread.title, thread.ticker, thread.intake, thread.summary]
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    )
+  }, [searchQuery, threads])
+
+  const handleCreateThread = () => {
+    const nextMessage = draft.trim()
+    if (!nextMessage) return
+
+    const matchedHolding = holdings.find((holding) => {
+      const normalized = nextMessage.toLowerCase()
+      return (
+        normalized.includes(holding.ticker.toLowerCase()) ||
+        normalized.includes(holding.name.toLowerCase())
+      )
+    })
+
+    const nextThread = {
+      id: `custom-${Date.now()}`,
+      title: nextMessage.length > 36 ? `${nextMessage.slice(0, 36)}...` : nextMessage,
+      ticker: matchedHolding?.ticker ?? "BOARD",
+      decision: "Position" as const,
+      intake: "New user-led board question",
+      summary: nextMessage,
+      updatedAt: "now",
+      unreadCount: 0,
+      participantAgentIds: ["portfolio-manager", "market-analyst", "risk-assessor"],
+      messages: [
+        {
+          id: "1",
+          author: "You",
+          role: "user" as const,
+          avatar: "YU",
+          message: nextMessage,
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ],
+    }
+
+    setThreads((current) => [nextThread, ...current])
+    setDraft("")
+    router.push({
+      pathname: "/thread/[id]",
+      params: {
+        id: nextThread.id,
+        title: nextThread.title,
+        ticker: nextThread.ticker,
+        intake: nextThread.intake,
+        message: nextMessage,
+      },
+    })
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-[#FBFCFF]">
@@ -37,32 +100,52 @@ export default function BoardTab() {
                 Open a conversation with the agent board
               </Text>
             </View>
-
-            <Pressable
-              className="h-11 w-11 items-center justify-center rounded-full"
-              style={{ backgroundColor: BLUE_SURFACE }}
-            >
-              <Ionicons name="search" size={20} color={BLUE} />
-            </Pressable>
           </View>
         </View>
 
         <View className="px-4">
           <View className="rounded-[30px] border border-[#EEF2F7] bg-white p-4">
             <Text className="font-sans text-[13px] font-semibold tracking-[1.2px] text-[#7A8699]">
-              LIVE BOARD
+              NEW THREAD
             </Text>
-            <Text className="mt-2 font-sans text-[28px] font-semibold leading-[34px] text-[#0F1728]">
-              Active decision threads
-            </Text>
-            <Text className="mt-2 font-sans text-[15px] leading-6 text-[#7A8699]">
-              Each thread captures a board-level discussion for one position, including intake,
-              recommendation, and agent debate.
-            </Text>
+            <View className="mt-3 flex-row items-center">
+              <View className="flex-1 rounded-full bg-[#F3F6FC] px-4 py-2.5">
+                <TextInput
+                  value={draft}
+                  onChangeText={setDraft}
+                  onSubmitEditing={handleCreateThread}
+                  placeholder="Ask the board about a stock or position"
+                  placeholderTextColor="#94A0B3"
+                  className="font-sans text-[16px] text-[#0F1728]"
+                  returnKeyType="send"
+                />
+              </View>
+              <Pressable
+                className="ml-2 h-11 w-11 items-center justify-center rounded-full"
+                style={draft.trim() ? $sendButtonActive : $sendButtonDisabled}
+                onPress={handleCreateThread}
+                disabled={!draft.trim()}
+              >
+                <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          </View>
+
+          <View className="mt-4 rounded-[28px] border border-[#EEF2F7] bg-white px-4 py-3">
+            <View className="flex-row items-center rounded-full bg-[#F4F7FF] px-4 py-2.5">
+              <Ionicons name="search" size={18} color="#7A8699" />
+              <TextInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search board conversations"
+                placeholderTextColor="#94A0B3"
+                className="ml-3 flex-1 font-sans text-[15px] text-[#0F1728]"
+              />
+            </View>
           </View>
 
           <View className="mt-4 gap-3">
-            {boardThreads.map((thread) => (
+            {filteredThreads.map((thread) => (
               <Pressable
                 key={thread.id}
                 className="rounded-[28px] border bg-white p-4"
@@ -144,6 +227,16 @@ export default function BoardTab() {
                 </View>
               </Pressable>
             ))}
+            {filteredThreads.length === 0 ? (
+              <View className="rounded-[28px] border border-[#EEF2F7] bg-white p-5">
+                <Text className="font-sans text-[18px] font-semibold text-[#0F1728]">
+                  No matching conversations
+                </Text>
+                <Text className="mt-2 font-sans text-[15px] leading-6 text-[#7A8699]">
+                  Try another ticker, decision keyword, or start a new thread above.
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
       </ScrollView>
@@ -153,4 +246,12 @@ export default function BoardTab() {
 
 const $content = {
   paddingBottom: 120,
+}
+
+const $sendButtonActive = {
+  backgroundColor: BLUE,
+}
+
+const $sendButtonDisabled = {
+  backgroundColor: "#BFD0FF",
 }

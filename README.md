@@ -38,6 +38,10 @@ This repository is still organized as an agent-first harness:
 - `apps/agents/`: local Python scaffold for TradingAgents-style multi-agent runtime
 - `templates/`: repo-owned bootstrap templates (`web-nextjs`, `mobile-react-native`)
 
+## Current Mobile Prototype Notes
+
+- The board tab now supports creating ad hoc investment discussions, searching conversation history, and opening new thread detail views from the drafted prompt.
+
 ## Workflow
 
 1. Read `AGENTS.md` and `ARCHITECTURE.md`
