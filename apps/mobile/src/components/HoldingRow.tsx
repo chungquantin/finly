@@ -12,7 +12,6 @@ type HoldingRowProps = {
   allocationPercent: number
   changePercent: number
   onPress: () => void
-  onViewBoard?: () => void
   borderColor?: string
 }
 
@@ -20,6 +19,7 @@ export function HoldingRow({
   name,
   logoUri,
   ticker,
+  shares,
   value,
   allocationPercent,
   changePercent,
@@ -37,6 +37,15 @@ export function HoldingRow({
         <View className="ml-3">
           <Text className="font-sans text-[18px] font-semibold text-[#0F1728]">{name}</Text>
           <Text className="font-sans text-[16px] text-[#7A8699]">{ticker}</Text>
+          {typeof shares === "number" ? (
+            <Text className="mt-0.5 font-sans text-[13px] text-[#7A8699]">
+              {shares} shares . {allocationPercent.toFixed(1)}% of portfolio
+            </Text>
+          ) : (
+            <Text className="mt-0.5 font-sans text-[13px] text-[#7A8699]">
+              {allocationPercent.toFixed(1)}% of portfolio
+            </Text>
+          )}
         </View>
       </View>
       <View className="items-end">
@@ -46,9 +55,6 @@ export function HoldingRow({
         >
           {changePercent >= 0 ? "+" : ""}
           {changePercent}%
-        </Text>
-        <Text className="mt-1 font-sans text-[13px] text-[#7A8699]">
-          {allocationPercent.toFixed(1)}% of portfolio
         </Text>
       </View>
     </Pressable>
