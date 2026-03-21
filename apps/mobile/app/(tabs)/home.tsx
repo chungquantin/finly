@@ -354,15 +354,22 @@ function InvestmentProfileCard({
   portfolioType: ReturnType<typeof useOnboardingStore.getState>["portfolioType"]
   riskExpertise: ReturnType<typeof useOnboardingStore.getState>["riskExpertise"]
 }) {
+  const risk = riskMeta(riskExpertise)
+  const horizon = horizonMeta(investmentHorizon)
+  const knowledge = knowledgeMeta(financialKnowledge)
+  const horizonSteps = [
+    { label: "1-2y", active: investmentHorizon === "short" },
+    { label: "3-5y", active: investmentHorizon === "medium" },
+    { label: "5+y", active: investmentHorizon === "long" },
+  ] as const
+
   return (
     <View
       className="mt-6 rounded-[28px] border bg-[#F7FAFF] px-4 py-4"
       style={{ borderColor: BORDER }}
     >
       <View className="flex-row items-center justify-between">
-        <Text className="font-sans text-[17px] font-semibold text-[#0F1728]">
-          Investment profile
-        </Text>
+        <Text className="font-sans text-[17px] font-semibold text-[#0F1728]">Investment profile</Text>
         <View className="rounded-full bg-[#EAF1FF] px-3 py-1.5">
           <Text className="font-sans text-[12px] font-medium text-[#2453FF]">
             {profileTypeLabel(portfolioType)}
@@ -370,10 +377,60 @@ function InvestmentProfileCard({
         </View>
       </View>
 
-      <View className="mt-4 flex-row flex-wrap">
-        <ProfilePill label="Risk" value={riskLabel(riskExpertise)} />
-        <ProfilePill label="Horizon" value={horizonLabel(investmentHorizon)} />
-        <ProfilePill label="Knowledge" value={knowledgeLabel(financialKnowledge)} />
+      <View className="mt-4 rounded-[18px] bg-white px-3 py-3">
+        <View className="flex-row items-center justify-between">
+          <Text className="font-sans text-[14px] font-semibold text-[#0F1728]">Risk</Text>
+          <Text className="font-sans text-[14px] font-semibold text-[#0F1728]">{risk.label}</Text>
+        </View>
+        <View className="mt-2 h-2.5 overflow-hidden rounded-full">
+          <LinearGradient
+            colors={["#20B968", "#F0C14B", "#E25757"]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={{ flex: 1 }}
+          />
+          <View
+            className="absolute h-4 w-4 rounded-full border-2 border-white bg-[#0F1728]"
+            style={{ left: `${risk.progress * 100}%`, marginLeft: -8, marginTop: -8, top: "50%" }}
+          />
+        </View>
+      </View>
+
+      <View className="mt-3 rounded-[18px] bg-white px-3 py-3">
+        <View className="flex-row items-center justify-between">
+          <Text className="font-sans text-[14px] font-semibold text-[#0F1728]">Horizon</Text>
+          <Text className="font-sans text-[14px] font-semibold text-[#0F1728]">{horizon.label}</Text>
+        </View>
+        <View className="mt-2 flex-row items-center justify-between">
+          {horizonSteps.map((step, index) => (
+            <View key={step.label} className="flex-1 items-center">
+              <View
+                className={`h-2.5 w-2.5 rounded-full ${step.active ? "bg-[#2453FF]" : "bg-[#D5DEEC]"}`}
+              />
+              {index < horizonSteps.length - 1 ? (
+                <View
+                  className="absolute h-px bg-[#D5DEEC]"
+                  style={{ left: "50%", right: "-50%", top: 4 }}
+                />
+              ) : null}
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <View className="mt-3 rounded-[18px] bg-white px-3 py-3">
+        <View className="flex-row items-center justify-between">
+          <Text className="font-sans text-[14px] font-semibold text-[#0F1728]">Investor level</Text>
+          <Text className="font-sans text-[13px] font-semibold text-[#2453FF]">
+            L{knowledge.level} {knowledge.label}
+          </Text>
+        </View>
+        <View className="mt-2 h-2 overflow-hidden rounded-full bg-[#E8EEF8]">
+          <View
+            className="h-full rounded-full bg-[#2453FF]"
+            style={{ width: `${knowledge.progress * 100}%` }}
+          />
+        </View>
       </View>
     </View>
   )
@@ -465,17 +522,6 @@ function PortfolioGrowthChart({
           </View>
         </View>
       </View>
-    </View>
-  )
-}
-
-function ProfilePill({ label, value }: { label: string; value: string }) {
-  return (
-    <View className="mb-2 mr-2 rounded-[20px] bg-white px-3 py-2">
-      <Text className="font-sans text-[11px] font-medium uppercase tracking-[0.8px] text-[#7A8699]">
-        {label}
-      </Text>
-      <Text className="mt-1 font-sans text-[14px] font-semibold text-[#0F1728]">{value}</Text>
     </View>
   )
 }
@@ -583,36 +629,45 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
 }
 
-function horizonLabel(value: "short" | "medium" | "long") {
+function horizonMeta(value: "short" | "medium" | "long") {
   switch (value) {
     case "short":
-      return "Short term"
+      return { label: "1-2 years" }
     case "medium":
-      return "Mid term"
+      return { label: "3-5 years" }
     default:
-      return "Long term"
+      return { label: "5+ years" }
   }
 }
 
-function knowledgeLabel(value: "novice" | "savvy" | "pro") {
+function knowledgeMeta(value: "novice" | "savvy" | "pro") {
   switch (value) {
     case "novice":
-      return "Beginner"
+      return { level: 1, progress: 0.34, label: "Beginner" }
     case "savvy":
-      return "Intermediate"
+      return { level: 2, progress: 0.67, label: "Intermediate" }
     default:
-      return "Advanced"
+      return { level: 3, progress: 1, label: "Advanced" }
   }
 }
 
-function riskLabel(value: "beginner" | "intermediate" | "expert") {
+function riskMeta(value: "beginner" | "intermediate" | "expert") {
   switch (value) {
     case "beginner":
-      return "Low"
+      return {
+        label: "Low",
+        progress: 0.18,
+      }
     case "intermediate":
-      return "Mid"
+      return {
+        label: "Mid",
+        progress: 0.52,
+      }
     default:
-      return "High"
+      return {
+        label: "High",
+        progress: 0.86,
+      }
   }
 }
 
