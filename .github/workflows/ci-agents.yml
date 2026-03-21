@@ -1,0 +1,36 @@
+name: Agents CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  agents-checks:
+    name: Agents - lint and build checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install lint/build tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ruff build
+
+      - name: Lint check (ruff)
+        run: ruff check apps/agents
+
+      - name: Build package
+        run: python -m build apps/agents
+
+      - name: Compile check
+        run: |
+          python -m py_compile apps/agents/main.py
+          find apps/agents/src -name "*.py" -print0 | xargs -0 -n1 python -m py_compile
