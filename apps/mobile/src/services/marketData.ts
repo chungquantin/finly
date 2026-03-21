@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import Config from "@/config"
 import { api } from "@/services/api"
 import type { MarketDataQuote } from "@/services/api/types"
+import { loadMarketQuotesCache, saveMarketQuotesCache } from "@/services/portfolioDataCache"
 
 type MarketDataState = {
   quotes: Record<string, MarketDataQuote>
@@ -26,7 +27,10 @@ export async function fetchMarketData(tickers: string[]): Promise<MarketDataQuot
 
 export function useMarketData(tickers: string[]): MarketDataState {
   const tickerKey = useMemo(
-    () => Array.from(new Set(tickers.map((ticker) => ticker.trim().toUpperCase()).filter(Boolean))).join(","),
+    () =>
+      Array.from(
+        new Set(tickers.map((ticker) => ticker.trim().toUpperCase()).filter(Boolean)),
+      ).join(","),
     [tickers],
   )
   const stableTickers = useMemo(() => (tickerKey ? tickerKey.split(",") : []), [tickerKey])
@@ -60,22 +64,42 @@ export function useMarketData(tickers: string[]): MarketDataState {
         }, {})
 
         setQuotes(nextQuotes)
+        await saveMarketQuotesCache(tickerKey, items)
       } catch {
         if (!isActive) return
-        setQuotes({})
       } finally {
         if (isActive) setIsLoading(false)
       }
     }
 
-    fetchQuotes()
+    const hydrateAndFetch = async () => {
+      const cached = await loadMarketQuotesCache(tickerKey)
+      if (!isActive) return
+
+      if (cached?.quotes.length) {
+        const cachedQuotes = cached.quotes.reduce<Record<string, MarketDataQuote>>((acc, item) => {
+          acc[item.ticker] = item
+          return acc
+        }, {})
+        setQuotes(cachedQuotes)
+        if (cached.isFresh) {
+          setIsLoading(false)
+        }
+      }
+
+      // Skip immediate network fetch when cache is still fresh.
+      if (cached?.isFresh) return
+      await fetchQuotes()
+    }
+
+    void hydrateAndFetch()
     const timer = setInterval(fetchQuotes, QUOTE_REFRESH_MS)
 
     return () => {
       isActive = false
       clearInterval(timer)
     }
-  }, [tickerKey])
+  }, [tickerKey, stableTickers])
 
   return { quotes, isLoading, hasLiveQuotes: Object.keys(quotes).length > 0 }
 }

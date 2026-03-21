@@ -309,8 +309,7 @@ export default function HoldingDetailRoute() {
                 {quickPrompts.map((prompt) => (
                   <Pressable
                     key={prompt}
-                    className="rounded-[16px] border border-[#DCE6FF] bg-[#F4F7FF] px-3 py-2"
-                    style={$quickPromptChip}
+                    className="w-full rounded-[16px] border border-[#DCE6FF] bg-[#F4F7FF] px-3 py-2"
                     onPress={() => handleCreateThread(prompt)}
                   >
                     <Text
@@ -408,10 +407,6 @@ function formatPublishedAt(value: string) {
 
 const $content = {
   paddingBottom: 32,
-}
-
-const $quickPromptChip = {
-  maxWidth: "100%",
 }
 
 const $quickPromptText = {
