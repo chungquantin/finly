@@ -16,6 +16,18 @@ const money = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value)
 
+const moneyWithCents = (value: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)
+
+const signedMoney = (value: number) => `${value >= 0 ? "+" : "-"}${moneyWithCents(Math.abs(value))}`
+
+const signedPct = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`
+
 const sortLabels = {
   value: "Value",
   alphabet: "Alphabet",
@@ -57,6 +69,15 @@ export default function PortfolioTab() {
     if (!previousValueUsd) return portfolioSnapshot.dailyPnlPercent
     return ((totalValueUsd - previousValueUsd) / previousValueUsd) * 100
   }, [portfolioSnapshot.dailyPnlPercent, previousValueUsd, totalValueUsd])
+  const dailyPnlUsd = useMemo(() => totalValueUsd - previousValueUsd, [previousValueUsd, totalValueUsd])
+  const totalPnlUsd = useMemo(
+    () => totalValueUsd - portfolioSnapshot.investedUsd,
+    [portfolioSnapshot.investedUsd, totalValueUsd],
+  )
+  const totalPnlPct = useMemo(() => {
+    if (!portfolioSnapshot.investedUsd) return 0
+    return (totalPnlUsd / portfolioSnapshot.investedUsd) * 100
+  }, [portfolioSnapshot.investedUsd, totalPnlUsd])
   const sortedHoldings = useMemo(() => {
     const nextHoldings = [...enrichedHoldings]
 
@@ -79,25 +100,40 @@ export default function PortfolioTab() {
         <View className="px-4">
           <View className="rounded-[30px] border border-[#EEF2F7] bg-white p-5">
             <Text className="font-sans text-[13px] font-semibold tracking-[1.2px] text-[#7A8699]">
-              TOTAL VALUE
+              PROFIT / LOSS
             </Text>
-            <Text className="mt-2 font-sans text-[34px] font-semibold leading-[40px] tracking-[-0.8px] text-[#0F1728]">
-              {money(totalValueUsd)}
+            <Text
+              className={`mt-2 font-sans text-[40px] font-semibold leading-[44px] tracking-[-0.8px] ${
+                totalPnlUsd >= 0 ? "text-[#22B45A]" : "text-[#F04438]"
+              }`}
+            >
+              {signedMoney(totalPnlUsd)}
             </Text>
-            <View className="mt-2 flex-row items-center justify-between">
-              <Text className="font-sans text-[17px] font-semibold text-[#22B45A]">
-                {dailyChangePct >= 0 ? "+" : ""}
-                {dailyChangePct.toFixed(2)}% today
+
+            <View className="mt-3 flex-row items-center">
+              <Text
+                className={`font-sans text-[28px] font-semibold ${
+                  totalPnlUsd >= 0 ? "text-[#22B45A]" : "text-[#F04438]"
+                }`}
+              >
+                {signedMoney(totalPnlUsd)} ({signedPct(totalPnlPct)})
               </Text>
-              <Text className="font-sans text-[15px] text-[#7A8699]">
-                Invested {money(portfolioSnapshot.investedUsd)}
+              <Text className="ml-2 font-sans text-[28px] font-semibold text-[#0F1728]">
+                Total Gain/Loss
               </Text>
             </View>
 
-            <View className="mt-5 flex-row gap-2">
-              <Tag label={`${enrichedHoldings.length} holdings`} />
-              <Tag label={`${money(portfolioSnapshot.cashUsd)} cash`} />
-              <Tag label="Live quotes" />
+            <View className="mt-2 flex-row items-center">
+              <Text
+                className={`font-sans text-[28px] font-semibold ${
+                  dailyPnlUsd >= 0 ? "text-[#22B45A]" : "text-[#F04438]"
+                }`}
+              >
+                {signedMoney(dailyPnlUsd)} ({signedPct(dailyChangePct)})
+              </Text>
+              <Text className="ml-2 font-sans text-[28px] font-semibold text-[#0F1728]">
+                Day&apos;s Gain/Loss
+              </Text>
             </View>
           </View>
 
@@ -176,14 +212,6 @@ export default function PortfolioTab() {
         </View>
       </ScrollView>
     </SafeAreaView>
-  )
-}
-
-function Tag({ label }: { label: string }) {
-  return (
-    <View className="rounded-full bg-[#F3F6FC] px-3 py-2">
-      <Text className="font-sans text-[13px] text-[#6B7586]">{label}</Text>
-    </View>
   )
 }
 
