@@ -13,12 +13,6 @@ import { boardThreads, holdingDecisions } from "@/utils/mockAppData"
 import { openLinkInBrowser } from "@/utils/openLinkInBrowser"
 import { useSelectedPortfolioData } from "@/utils/selectedPortfolio"
 
-const decisionColors = {
-  Buy: { background: "#E9F7EF", text: "#1F8A4C" },
-  Sell: { background: "#FFF1F1", text: "#D64545" },
-  Position: { background: "#EEF3FF", text: "#2453FF" },
-} as const
-
 const QUICK_PROMPT_TEMPLATES = [
   "Should I add more {ticker} this month?",
   "What would make you upgrade {ticker} from Position to Buy?",
@@ -119,12 +113,11 @@ export default function HoldingDetailRoute() {
     <SafeAreaView className="flex-1 bg-[#FBFCFF]">
       <ScrollView className="flex-1" contentContainerStyle={$content}>
         <IosHeader
-          title={holding.ticker}
+          title=""
           leftLabel="‹"
-          rightLabel={formatSignedUsd(totalGain)}
           onLeftPress={() => router.back()}
-          titleClassName="text-[20px] leading-[24px]"
-          rightLabelClassName={totalGain >= 0 ? "text-[#1F8A4C]" : "text-[#D64545]"}
+          titleClassName="text-[0px] leading-[0px]"
+          containerClassName="pb-1 pt-1"
         />
 
         <View className="px-4">
@@ -139,15 +132,13 @@ export default function HoldingDetailRoute() {
                   Allocation {holding.allocationPercent}% · {holding.shares} shares
                 </Text>
               </View>
-              <View
-                className="rounded-full px-3 py-2"
-                style={{ backgroundColor: decisionColors[decision.decision].background }}
-              >
+              <View className="items-end">
                 <Text
-                  className="font-sans text-[13px] font-semibold"
-                  style={{ color: decisionColors[decision.decision].text }}
+                  className={`font-sans text-[22px] font-semibold ${
+                    totalGain >= 0 ? "text-[#1F8A4C]" : "text-[#D64545]"
+                  }`}
                 >
-                  {decision.decision}
+                  {formatSignedUsd(totalGain)}
                 </Text>
               </View>
             </View>
