@@ -32,8 +32,8 @@ const signedPct = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(2)
 
 const sortLabels = {
   value: "Value",
-  alphabet: "Alphabet",
-  holdings: "Holdings",
+  alphabet: "A-Z",
+  holdings: "Share Size",
 } as const
 
 type HoldingsSort = keyof typeof sortLabels
@@ -78,6 +78,12 @@ export default function PortfolioTab() {
     if (!portfolioSnapshot.investedUsd) return 0
     return (totalPnlUsd / portfolioSnapshot.investedUsd) * 100
   }, [portfolioSnapshot.investedUsd, totalPnlUsd])
+  const accountBalanceUsd = useMemo(
+    () => portfolioSnapshot.cashUsd + totalPnlUsd,
+    [portfolioSnapshot.cashUsd, totalPnlUsd],
+  )
+  const totalPnlLabel = totalPnlUsd >= 0 ? "Total Gain" : "Total Loss"
+  const dailyPnlLabel = dailyPnlUsd >= 0 ? "Day's Gain" : "Day's Loss"
   const sortedHoldings = useMemo(() => {
     const nextHoldings = [...enrichedHoldings]
 
@@ -135,6 +141,31 @@ export default function PortfolioTab() {
         (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
       )
   }, [boardThreads, enrichedHoldings, quotes])
+  const latestHeldThreadIdByTicker = useMemo(() => {
+    const heldTickerSet = new Set(enrichedHoldings.map((holding) => holding.ticker.trim().toUpperCase()))
+    const map = new Map<string, string>()
+
+    boardThreads
+      .filter((thread) => thread.ticker.trim().toUpperCase() !== "BOARD")
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+      .forEach((thread) => {
+        const ticker = thread.ticker.trim().toUpperCase()
+        if (!ticker || !heldTickerSet.has(ticker) || map.has(ticker)) return
+        map.set(ticker, thread.id)
+      })
+
+    return map
+  }, [boardThreads, enrichedHoldings])
+
+  const handleOpenBoardForHolding = (ticker: string) => {
+    const normalizedTicker = ticker.trim().toUpperCase()
+    const threadId = latestHeldThreadIdByTicker.get(normalizedTicker)
+    if (threadId) {
+      router.push(`/thread/${threadId}`)
+      return
+    }
+    router.push(`/holding/${normalizedTicker}`)
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-[#FBFCFF]">
@@ -156,13 +187,13 @@ export default function PortfolioTab() {
           </View>
 
           <View className="rounded-[30px] border border-[#EEF2F7] bg-white p-5">
-            <Text className="font-sans text-[13px] font-semibold tracking-[1.2px] text-[#7A8699]">
-              PROFIT / LOSS
+            <Text className="font-sans text-[22px] font-semibold tracking-[1.2px] text-[#7A8699]">
+              Total Returns
             </Text>
             <Text
               className="mt-2 font-sans text-[40px] font-semibold leading-[44px] tracking-[-0.8px] text-black"
             >
-              {totalPnlUsd >= 0 ? '+' : '-'}{Math.abs(totalPnlUsd).toFixed(2)}
+              {moneyWithCents(accountBalanceUsd)}
             </Text>
             {showPortfolioSkeleton ? <SkeletonBlock className="mt-2 h-10 w-40" /> : null}
 
@@ -175,7 +206,7 @@ export default function PortfolioTab() {
                 {signedMoney(totalPnlUsd)} ({signedPct(totalPnlPct)})
               </Text>
               <Text className="ml-2 font-sans text-[16px] font-semibold text-[#0F1728]">
-                Total Gain/Loss
+                {totalPnlLabel}
               </Text>
             </View>
 
@@ -188,11 +219,12 @@ export default function PortfolioTab() {
                 {signedMoney(dailyPnlUsd)} ({signedPct(dailyChangePct)})
               </Text>
               <Text className="ml-2 font-sans text-[16px] font-semibold text-[#0F1728]">
-                Day&apos;s Gain/Loss
+                {dailyPnlLabel}
               </Text>
             </View>
-
-            {/* Removed card with asset/cash tags */}
+            <Text className="mt-1 font-sans text-[11px] text-[#98A2B3]">
+              Initial amount {moneyWithCents(portfolioSnapshot.cashUsd)}
+            </Text>
           </View>
 
           <View className="mt-4 rounded-[30px] border border-[#EEF2F7] bg-white p-4">
@@ -200,7 +232,15 @@ export default function PortfolioTab() {
               <Text className="font-sans text-[24px] font-semibold text-[#0F1728]">
                 {assetTab === "assets" ? "Assets" : "Watchlist"}
               </Text>
-              {/* Removed 'Sorted by ...' text */}
+              {assetTab === "assets" ? (
+                <Text className="font-sans text-[14px] text-[#7A8699]">
+                  Sorted by {sortLabels[sortBy]}
+                </Text>
+              ) : (
+                <Text className="font-sans text-[14px] text-[#7A8699]">
+                  Sorted by latest board update
+                </Text>
+              )}
             </View>
 
             {assetTab === "assets" ? (
@@ -214,44 +254,79 @@ export default function PortfolioTab() {
                   </Text>
                 </View>
               ) : (
-                sortedHoldings.map((holding) => (
-                  <View key={holding.ticker} className="mt-4 rounded-[20px] bg-[#F6F8FF] p-4">
-                    <View className="flex-row items-center">
-                      <TickerLogo ticker={holding.ticker} logoUri={holding.logoUri} />
-                      <View className="ml-3">
-                        <Text className="font-sans text-[20px] font-semibold text-[#0F1728]">
-                          {holding.ticker}
-                        </Text>
-                        <Text className="font-sans text-[15px] text-[#7A8699]">
-                          {holding.name}
-                        </Text>
-                      </View>
-                      <View className="ml-auto items-end">
-                        <Text className="font-sans text-[20px] font-semibold text-[#0F1728]">
-                          {money(holding.valueUsd)}
-                        </Text>
-                        <Text
-                          className={`font-sans text-[15px] ${holding.totalGainUsd >= 0 ? "text-[#22B45A]" : "text-[#F04438]"}`}
-                        >
-                          {signedMoney(holding.totalGainUsd)}
-                        </Text>
-                      </View>
-                    </View>
-                    <View className="mt-2 flex-row items-center justify-between">
-                      <Text className="font-sans text-[13px] text-[#7A8699]">
-                        {holding.shares} shares
-                      </Text>
-                      <View className="flex-row items-center">
-                        <Text className="font-sans text-[13px] text-[#7A8699]">
-                          Allocation {holding.allocationPercent}%
-                        </Text>
-                        <Text className="ml-2 font-sans text-[13px] text-[#2453FF]">
-                          View board
-                        </Text>
-                      </View>
-                    </View>
+                <>
+                  <View className="mt-4 flex-row gap-2">
+                    <SortButton
+                      active={sortBy === "value"}
+                      label={sortLabels.value}
+                      onPress={() => setSortBy("value")}
+                    />
+                    <SortButton
+                      active={sortBy === "alphabet"}
+                      label={sortLabels.alphabet}
+                      onPress={() => setSortBy("alphabet")}
+                    />
+                    <SortButton
+                      active={sortBy === "holdings"}
+                      label={sortLabels.holdings}
+                      onPress={() => setSortBy("holdings")}
+                    />
                   </View>
-                ))
+
+                  {sortedHoldings.map((holding) => (
+                    <View key={holding.ticker} className="mt-4 rounded-[20px] bg-[#F6F8FF] p-4">
+                      <View className="flex-row items-center">
+                        <TickerLogo ticker={holding.ticker} logoUri={holding.logoUri} />
+                        <View className="ml-3">
+                          <Text className="font-sans text-[20px] font-semibold text-[#0F1728]">
+                            {holding.ticker}
+                          </Text>
+                          <Text className="font-sans text-[15px] text-[#7A8699]">
+                            {holding.name}
+                          </Text>
+                        </View>
+                        <View className="ml-auto items-end">
+                          <Text className="font-sans text-[20px] font-semibold text-[#0F1728]">
+                            {money(holding.valueUsd)}
+                          </Text>
+                          <Text
+                            className={`font-sans text-[15px] ${holding.totalGainUsd >= 0 ? "text-[#22B45A]" : "text-[#F04438]"}`}
+                          >
+                            {signedMoney(holding.totalGainUsd)}
+                          </Text>
+                        </View>
+                      </View>
+                      <View className="mt-2 flex-row items-center justify-between">
+                        <Text className="font-sans text-[13px] text-[#7A8699]">
+                          {holding.shares} shares . Allocation {holding.allocationPercent.toFixed(2)} %
+                        </Text>
+                        <Pressable
+                          onPress={() => handleOpenBoardForHolding(holding.ticker)}
+                          accessibilityRole="button"
+                          style={({ pressed, hovered }) => ({
+                            borderRadius: 9999,
+                            paddingLeft: 8,
+                            paddingRight: 0,
+                            paddingVertical: 2,
+                            backgroundColor: pressed ? "#DBE6FF" : hovered ? "#EEF3FF" : "transparent",
+                          })}
+                        >
+                          {({ pressed, hovered }) => (
+                            <Text
+                              className="font-sans text-[13px] font-semibold"
+                              style={{
+                                color: pressed ? "#163FCC" : hovered ? "#1E49E0" : "#2453FF",
+                                textDecorationLine: hovered || pressed ? "underline" : "none",
+                              }}
+                            >
+                              View board
+                            </Text>
+                          )}
+                        </Pressable>
+                      </View>
+                    </View>
+                  ))}
+                </>
               )
             ) : watchlistRows.length === 0 ? (
               <View className="mt-4 rounded-[20px] bg-[#F6F8FF] p-4">
@@ -317,11 +392,30 @@ export default function PortfolioTab() {
   )
 }
 
-function Tag({ label }: { label: string }) {
+function SortButton({
+  active,
+  label,
+  onPress,
+}: {
+  active: boolean
+  label: string
+  onPress: () => void
+}) {
   return (
-    <View className="rounded-full bg-[#F3F6FC] px-3 py-1.5">
-      <Text className="font-sans text-[11px] text-[#6B7586]">{label}</Text>
-    </View>
+    <Pressable
+      className={`rounded-full px-3 py-1.5 border ${
+        active ? "bg-black border-black" : "bg-[#F3F6FC] border-[#E6EAF2]"
+      }`}
+      onPress={onPress}
+    >
+      <Text
+        className={`font-sans text-[12px] font-semibold ${
+          active ? "text-white" : "text-black"
+        }`}
+      >
+        {label}
+      </Text>
+    </Pressable>
   )
 }
 
@@ -337,7 +431,7 @@ function SegmentTab({
   return (
     <Pressable
       className={`rounded-full border px-4 py-1.5 ${
-        active ? "border-[#2453FF] bg-[#2453FF]" : "border-[#E6EAF2] bg-white"
+        active ? "border-black bg-black" : "border-[#E6EAF2] bg-white"
       }`}
       onPress={onPress}
     >
