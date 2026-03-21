@@ -1,0 +1,9 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+default:
+  @just --list
+
+start:
+  if [[ -x .venv/bin/finly-backend-api ]]; then .venv/bin/finly-backend-api; elif [[ -x .venv/bin/python ]]; then .venv/bin/python main.py; else python3 main.py; fi
+
+server: start
