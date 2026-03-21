@@ -1,8 +1,17 @@
 FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
+
 COPY pyproject.toml .
+COPY README.md .
 COPY src/ src/
 COPY main.py .
+
 RUN pip install --no-cache-dir -e .
+
 EXPOSE 8001
-CMD ["python", "main.py"]
+
+CMD ["finly-agent-server"]
