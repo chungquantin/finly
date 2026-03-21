@@ -1,0 +1,72 @@
+name: Auto Format Bot
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-format:
+    name: Auto-format mobile and agents
+    runs-on: ubuntu-latest
+    if: >
+      github.actor != 'github-actions[bot]' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        github.event.pull_request.head.repo.fork == false
+      )
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: apps/mobile/pnpm-lock.yaml
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install format tools
+        run: |
+          cd apps/mobile
+          pnpm install --frozen-lockfile
+          python -m pip install --upgrade pip
+          python -m pip install ruff
+
+      - name: Auto format mobile (Prettier)
+        run: |
+          cd apps/mobile
+          pnpm exec prettier --write .
+
+      - name: Auto format agents (Ruff)
+        run: |
+          ruff format apps/agents
+          ruff check apps/agents --fix
+
+      - name: Commit formatting fixes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(ci): auto-format mobile and agents"
+          commit_user_name: github-actions[bot]
+          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          file_pattern: apps/mobile apps/agents
