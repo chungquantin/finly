@@ -77,10 +77,7 @@ export default function PortfolioTab() {
     if (!portfolioSnapshot.investedUsd) return 0
     return (totalPnlUsd / portfolioSnapshot.investedUsd) * 100
   }, [portfolioSnapshot.investedUsd, totalPnlUsd])
-  const accountBalanceUsd = useMemo(
-    () => portfolioSnapshot.cashUsd + totalPnlUsd,
-    [portfolioSnapshot.cashUsd, totalPnlUsd],
-  )
+  const accountBalanceUsd = useMemo(() => totalValueUsd, [totalValueUsd])
   const totalPnlLabel = totalPnlUsd >= 0 ? "Total Gain" : "Total Loss"
   const dailyPnlLabel = dailyPnlUsd >= 0 ? "Day's Gain" : "Day's Loss"
   const sortedHoldings = useMemo(() => {
@@ -199,7 +196,7 @@ export default function PortfolioTab() {
               </Text>
             </View>
             <Text className="mt-1 font-sans text-[11px] text-[#98A2B3]">
-              Initial amount {moneyWithCents(portfolioSnapshot.cashUsd)}
+              Initial amount {moneyWithCents(portfolioSnapshot.investedUsd)}
             </Text>
           </View>
 
