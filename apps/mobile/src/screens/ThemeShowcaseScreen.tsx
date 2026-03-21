@@ -1,32 +1,36 @@
 /* eslint-disable no-restricted-imports */
-import { Pressable, ScrollView, Text, View, ViewStyle } from "react-native"
+import { Pressable, Text, TextInput, View, ViewStyle } from "react-native"
 import { useRouter } from "expo-router"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { Ionicons } from "@expo/vector-icons"
 
-import { cn } from "../lib/utils"
-import { useOnboardingStore } from "../stores/onboardingStore"
+import { AiryScreenShell } from "@/components/AiryScreenShell"
+import { IosHeader } from "@/components/IosHeader"
+import { cn } from "@/lib/utils"
+import { useOnboardingStore } from "@/stores/onboardingStore"
 
 const riskLevels = ["beginner", "intermediate", "expert"] as const
 
 const horizons = [
-  { key: "short", icon: "◌", title: "Short Term", subtitle: "1 - 3 years", iconBg: "bg-sky" },
-  { key: "medium", icon: "↗", title: "Medium Term", subtitle: "3 - 7 years", iconBg: "bg-lemon" },
-  { key: "long", icon: "◎", title: "Long Term", subtitle: "7+ years", iconBg: "bg-peach" },
+  { key: "short", title: "Short term", subtitle: "1-3 years" },
+  { key: "medium", title: "Medium term", subtitle: "3-7 years" },
+  { key: "long", title: "Long term", subtitle: "7+ years" },
 ] as const
 
-const knowledge = [
-  { key: "novice", icon: "🌱", label: "Novice" },
-  { key: "savvy", icon: "💡", label: "Savvy" },
-  { key: "pro", icon: "💼", label: "Pro" },
+const knowledgeLevels = [
+  { key: "novice", label: "Novice" },
+  { key: "savvy", label: "Savvy" },
+  { key: "pro", label: "Pro" },
 ] as const
 
 export function ThemeShowcaseScreen() {
   const router = useRouter()
 
+  const name = useOnboardingStore((state) => state.name)
   const selectedRisk = useOnboardingStore((state) => state.riskExpertise)
   const selectedHorizon = useOnboardingStore((state) => state.investmentHorizon)
   const selectedKnowledge = useOnboardingStore((state) => state.financialKnowledge)
 
+  const setName = useOnboardingStore((state) => state.setName)
   const setRiskExpertise = useOnboardingStore((state) => state.setRiskExpertise)
   const setInvestmentHorizon = useOnboardingStore((state) => state.setInvestmentHorizon)
   const setFinancialKnowledge = useOnboardingStore((state) => state.setFinancialKnowledge)
@@ -34,8 +38,6 @@ export function ThemeShowcaseScreen() {
   const setWalletAddress = useOnboardingStore((state) => state.setWalletAddress)
   const setStockImportMethod = useOnboardingStore((state) => state.setStockImportMethod)
   const setOnboardingCompleted = useOnboardingStore((state) => state.setOnboardingCompleted)
-
-  const selectedRiskIndex = riskLevels.findIndex((item) => item === selectedRisk)
 
   const continueToStep2 = () => {
     setOnboardingCompleted(false)
@@ -51,160 +53,184 @@ export function ThemeShowcaseScreen() {
   }
 
   return (
-    <View className="flex-1 bg-background">
-      <SafeAreaView className="flex-1">
-        <ScrollView
-          className="flex-1"
-          contentContainerStyle={$scrollContentContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          <View className="rounded-xl3 border border-border bg-card px-5 pb-6 pt-4 shadow-card">
-            <View className="mt-2 items-center">
-              <Text className="font-semi text-xs tracking-[2px] text-muted">STEP 1 OF 4</Text>
-              <View className="mt-4 h-1.5 w-full rounded-full bg-border">
-                <View className="h-1.5 w-1/4 rounded-full bg-lilac" />
-              </View>
-            </View>
+    <AiryScreenShell variant="soft" contentContainerStyle={$contentContainer}>
+      <View className="mt-2 rounded-[36px] border border-[#F1F2F6] bg-white px-4 pb-6 pt-5">
+        <IosHeader
+          title="Add wallet"
+          titleClassName="text-[24px] leading-[28px]"
+          leftLabel="‹"
+          rightLabel="?"
+          onLeftPress={() => router.back()}
+          onRightPress={() => {}}
+        />
 
-            <View className="mt-7">
-              <Text className="font-semi text-[32px] leading-[36px] text-ink">
-                Build your profile
+        <View className="mt-3 rounded-[30px] bg-[#F8FAFF] px-5 py-5">
+          <View className="flex-row items-start justify-between">
+            <View className="flex-1 pr-4">
+              <Text className="text-[13px] font-semibold tracking-[1.4px] text-[#8E8E93]">
+                STEP 1 OF 4
               </Text>
-              <Text className="mt-2 text-[16px] leading-6 text-muted">
-                Help our AI understand your goals to personalize your investment strategy.
+              <Text className="mt-3 text-[31px] font-semibold leading-[36px] text-[#111111]">
+                Build your investor profile
+              </Text>
+              <Text className="mt-2 text-[16px] leading-6 text-[#6B7280]">
+                Match your dashboard experience to your goals, comfort level, and investing style.
               </Text>
             </View>
 
-            <View className="mt-8">
-              <Text className="text-sm font-semi tracking-[1.6px] text-muted">RISK EXPERTISE</Text>
-              <View className="mt-3 rounded-xl2 border border-border bg-[#F8FAFF] p-4">
-                <View className="flex-row items-center justify-between px-1">
-                  {(["Beginner", "Intermediate", "Expert"] as const).map((label, index) => (
-                    <Pressable key={label} onPress={() => setRiskExpertise(riskLevels[index])}>
-                      <Text
-                        className={cn(
-                          "text-xs font-semi",
-                          selectedRiskIndex === index ? "text-ink" : "text-muted",
-                        )}
-                      >
-                        {label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                <View className="mt-3">
-                  <View className="h-2 rounded-full bg-border" />
-                  <View
-                    className={cn(
-                      "absolute top-[-5px] h-4 w-4 rounded-full border-2 border-card bg-lilac",
-                      selectedRiskIndex === 0 ? "left-[2%]" : "",
-                      selectedRiskIndex === 1 ? "left-[48%]" : "",
-                      selectedRiskIndex === 2 ? "left-[92%]" : "",
-                    )}
-                  />
-                </View>
-
-                <View className="mt-4 items-center">
-                  <View className="rounded-full bg-mint px-4 py-1">
-                    <Text className="text-xs font-semi text-[#15803D]">Conservative Approach</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            <View className="mt-7">
-              <Text className="text-sm font-semi tracking-[1.6px] text-muted">
-                INVESTMENT TASTE
-              </Text>
-              <View className="mt-3 gap-3">
-                {horizons.map((item) => {
-                  const selected = selectedHorizon === item.key
-
-                  return (
-                    <Pressable
-                      key={item.key}
-                      onPress={() => setInvestmentHorizon(item.key)}
-                      className={cn(
-                        "rounded-xl2 border bg-card px-4 py-4",
-                        selected ? "border-warning shadow-card" : "border-border",
-                      )}
-                    >
-                      <View className="flex-row items-center justify-between">
-                        <View className="flex-row items-center">
-                          <View
-                            className={cn(
-                              "h-11 w-11 items-center justify-center rounded-2xl",
-                              item.iconBg,
-                            )}
-                          >
-                            <Text className="text-sm font-semi text-ink">{item.icon}</Text>
-                          </View>
-                          <View className="ml-3">
-                            <Text className="text-[18px] font-semi leading-6 text-ink">
-                              {item.title}
-                            </Text>
-                            <Text className="mt-1 text-[14px] text-muted">{item.subtitle}</Text>
-                          </View>
-                        </View>
-                        {selected ? (
-                          <View className="h-5 w-5 items-center justify-center rounded-full bg-warning">
-                            <Text className="text-xs font-semi text-ink">✓</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    </Pressable>
-                  )
-                })}
-              </View>
-            </View>
-
-            <View className="mt-7">
-              <Text className="text-sm font-semi tracking-[1.6px] text-muted">
-                FINANCIAL KNOWLEDGE
-              </Text>
-              <View className="mt-3 flex-row justify-between">
-                {knowledge.map((item) => {
-                  const selected = selectedKnowledge === item.key
-                  return (
-                    <Pressable
-                      key={item.key}
-                      onPress={() => setFinancialKnowledge(item.key)}
-                      className={cn(
-                        "w-[31%] items-center rounded-2xl border px-2 py-3",
-                        selected ? "border-lilac bg-lilac/30" : "border-border bg-card",
-                      )}
-                    >
-                      <Text className="text-2xl">{item.icon}</Text>
-                      <Text className="mt-2 text-sm font-semi text-ink">{item.label}</Text>
-                    </Pressable>
-                  )
-                })}
-              </View>
-            </View>
-
-            <View className="mt-8">
-              <Pressable
-                className="h-16 items-center justify-center rounded-full bg-[#08153A]"
-                onPress={continueToStep2}
-                accessibilityRole="button"
-              >
-                <Text className="text-[20px] font-semi text-white">Continue</Text>
-              </Pressable>
-              <Pressable className="items-center py-4" onPress={skipToStep4}>
-                <Text className="text-sm text-muted">Skip for now, I&apos;ll do this later.</Text>
-              </Pressable>
+            <View className="h-16 w-16 items-center justify-center rounded-[22px] bg-white">
+              <Ionicons name="sparkles-outline" size={28} color="#2453FF" />
             </View>
           </View>
-        </ScrollView>
-      </SafeAreaView>
+
+          <View className="mt-4 h-1.5 w-full rounded-full bg-[#E9EBF2]">
+            <View className="h-1.5 w-1/4 rounded-full bg-[#2453FF]" />
+          </View>
+        </View>
+
+        <SectionCard className="mt-4">
+          <Text className="text-[13px] font-semibold tracking-[1.2px] text-[#8E8E93]">NAME</Text>
+          <Text className="mt-2 text-[22px] font-semibold text-[#111111]">
+            What should we call you?
+          </Text>
+          <TextInput
+            className="mt-4 rounded-[22px] border border-[#E7EAF2] bg-[#F8F9FC] px-4 py-4 text-[17px] text-[#111111]"
+            placeholder="Enter your name"
+            placeholderTextColor="#A1A1AA"
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+        </SectionCard>
+
+        <SectionCard className="mt-4">
+          <View className="flex-row items-center justify-between">
+            <View>
+              <Text className="text-[13px] font-semibold tracking-[1.2px] text-[#8E8E93]">
+                RISK PROFILE
+              </Text>
+              <Text className="mt-2 text-[22px] font-semibold text-[#111111]">Risk expertise</Text>
+            </View>
+            <View className="rounded-full bg-[#F3F5FA] px-3 py-2">
+              <Text className="text-[13px] text-[#6B7280]">Personalized</Text>
+            </View>
+          </View>
+
+          <View className="mt-4 flex-row flex-wrap gap-2">
+            {riskLevels.map((item) => (
+              <Chip
+                key={item}
+                label={capitalize(item)}
+                selected={selectedRisk === item}
+                onPress={() => setRiskExpertise(item)}
+              />
+            ))}
+          </View>
+        </SectionCard>
+
+        <SectionCard className="mt-4">
+          <Text className="text-[13px] font-semibold tracking-[1.2px] text-[#8E8E93]">
+            TIMEFRAME
+          </Text>
+          <Text className="mt-2 text-[22px] font-semibold text-[#111111]">Investment horizon</Text>
+
+          <View className="mt-4">
+            {horizons.map((item) => {
+              const selected = selectedHorizon === item.key
+
+              return (
+                <Pressable
+                  key={item.key}
+                  className="flex-row items-center justify-between border-b border-[#ECEEF4] py-4 last:border-b-0"
+                  onPress={() => setInvestmentHorizon(item.key)}
+                >
+                  <View>
+                    <Text className="text-[18px] font-semibold text-[#111111]">{item.title}</Text>
+                    <Text className="mt-1 text-[15px] text-[#8E8E93]">{item.subtitle}</Text>
+                  </View>
+
+                  <View
+                    className={cn(
+                      "h-7 w-7 items-center justify-center rounded-full border",
+                      selected ? "border-[#2453FF] bg-[#EEF2FF]" : "border-[#D6DBE6] bg-white",
+                    )}
+                  >
+                    {selected ? <View className="h-3.5 w-3.5 rounded-full bg-[#2453FF]" /> : null}
+                  </View>
+                </Pressable>
+              )
+            })}
+          </View>
+        </SectionCard>
+
+        <SectionCard className="mt-4">
+          <Text className="text-[13px] font-semibold tracking-[1.2px] text-[#8E8E93]">
+            EXPERIENCE
+          </Text>
+          <Text className="mt-2 text-[22px] font-semibold text-[#111111]">Financial knowledge</Text>
+
+          <View className="mt-4 flex-row flex-wrap gap-2">
+            {knowledgeLevels.map((item) => (
+              <Chip
+                key={item.key}
+                label={item.label}
+                selected={selectedKnowledge === item.key}
+                onPress={() => setFinancialKnowledge(item.key)}
+              />
+            ))}
+          </View>
+        </SectionCard>
+
+        <Pressable
+          className="mt-5 h-16 items-center justify-center rounded-[26px] bg-[#34C759]"
+          onPress={continueToStep2}
+        >
+          <Text className="text-[18px] font-semibold text-white">Continue</Text>
+        </Pressable>
+
+        <Pressable className="items-center py-4" onPress={skipToStep4}>
+          <Text className="text-[15px] font-medium text-[#8E8E93]">Skip for now</Text>
+        </Pressable>
+      </View>
+    </AiryScreenShell>
+  )
+}
+
+function SectionCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <View className={cn("rounded-[30px] border border-[#F1F2F6] bg-white p-5", className)}>
+      {children}
     </View>
   )
 }
 
-const $scrollContentContainer: ViewStyle = {
-  paddingHorizontal: 16,
-  paddingTop: 12,
+function Chip({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string
+  selected: boolean
+  onPress: () => void
+}) {
+  return (
+    <Pressable
+      className={cn("rounded-full px-4 py-2.5", selected ? "bg-[#2453FF]" : "bg-[#F3F5FA]")}
+      onPress={onPress}
+    >
+      <Text className={cn("text-[15px] font-medium", selected ? "text-white" : "text-[#6B7280]")}>
+        {label}
+      </Text>
+    </Pressable>
+  )
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+const $contentContainer: ViewStyle = {
+  paddingTop: 10,
   paddingBottom: 24,
-  flexGrow: 1,
 }

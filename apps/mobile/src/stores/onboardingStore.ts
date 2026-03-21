@@ -9,6 +9,7 @@ export type PortfolioType = "crypto" | "stock"
 export type StockImportMethod = "screenshot" | "manual" | "csv"
 
 export type OnboardingState = {
+  name: string
   riskExpertise: RiskExpertise
   investmentHorizon: InvestmentHorizon
   financialKnowledge: FinancialKnowledge
@@ -16,6 +17,7 @@ export type OnboardingState = {
   walletAddress: string
   stockImportMethod: StockImportMethod | null
   onboardingCompleted: boolean
+  setName: (value: string) => void
   setRiskExpertise: (value: RiskExpertise) => void
   setInvestmentHorizon: (value: InvestmentHorizon) => void
   setFinancialKnowledge: (value: FinancialKnowledge) => void
@@ -28,10 +30,11 @@ export type OnboardingState = {
 }
 
 const STORAGE_KEY = "finly.onboarding.profile.v1"
-const STORAGE_VERSION = 2
+const STORAGE_VERSION = 3
 
 const initialState: Pick<
   OnboardingState,
+  | "name"
   | "riskExpertise"
   | "investmentHorizon"
   | "financialKnowledge"
@@ -40,6 +43,7 @@ const initialState: Pick<
   | "stockImportMethod"
   | "onboardingCompleted"
 > = {
+  name: "",
   riskExpertise: "beginner",
   investmentHorizon: "medium",
   financialKnowledge: "savvy",
@@ -51,6 +55,7 @@ const initialState: Pick<
 
 type PersistedState = Pick<
   OnboardingState,
+  | "name"
   | "riskExpertise"
   | "investmentHorizon"
   | "financialKnowledge"
@@ -73,6 +78,7 @@ type LegacyPersistedState = {
 }
 
 const selectPersistedState = (state: OnboardingState): PersistedState => ({
+  name: state.name,
   riskExpertise: state.riskExpertise,
   investmentHorizon: state.investmentHorizon,
   financialKnowledge: state.financialKnowledge,
@@ -116,6 +122,7 @@ const parsePersistedState = (value: unknown): PersistedState | null => {
   const stateRecord = isObjectRecord(value.state) ? value.state : value
   const legacyRecord = stateRecord as LegacyPersistedState
 
+  const name = typeof stateRecord.name === "string" ? stateRecord.name : ""
   const riskExpertise = asRiskExpertise(stateRecord.riskExpertise) ?? initialState.riskExpertise
   const investmentHorizon =
     asInvestmentHorizon(stateRecord.investmentHorizon) ?? initialState.investmentHorizon
@@ -135,6 +142,7 @@ const parsePersistedState = (value: unknown): PersistedState | null => {
     typeof stateRecord.onboardingCompleted === "boolean" ? stateRecord.onboardingCompleted : false
 
   return {
+    name,
     riskExpertise,
     investmentHorizon,
     financialKnowledge,
@@ -147,6 +155,7 @@ const parsePersistedState = (value: unknown): PersistedState | null => {
 
 export const useOnboardingStore = create<OnboardingState>((set) => ({
   ...initialState,
+  setName: (name) => set({ name }),
   setRiskExpertise: (riskExpertise) => set({ riskExpertise }),
   setInvestmentHorizon: (investmentHorizon) => set({ investmentHorizon }),
   setFinancialKnowledge: (financialKnowledge) => set({ financialKnowledge }),
