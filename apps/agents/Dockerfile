@@ -5,9 +5,10 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-COPY apps/agents/pyproject.toml .
-COPY apps/agents/README.md .
-COPY apps/agents/src/ src/
+COPY pyproject.toml .
+COPY README.md .
+COPY src/ src/
+COPY main.py .
 
 RUN pip install --no-cache-dir -e .
 
