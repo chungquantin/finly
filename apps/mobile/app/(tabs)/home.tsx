@@ -12,6 +12,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native"
+import { LinearGradient } from "expo-linear-gradient"
 import { useRouter } from "expo-router"
 import { MotiView } from "moti"
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
@@ -153,13 +154,20 @@ export default function HomeTab() {
               <View className="rounded-[36px] px-5 pb-6 pt-4">
                 <View className="items-center">
                   <View
-                    className="h-24 w-24 items-center justify-center rounded-full border-[6px] bg-[#2453FF]"
+                    className="h-24 w-24 overflow-hidden rounded-full border-[6px]"
                     style={{ borderColor: "#91FF66" }}
                   >
-                    <Text className="font-sans text-[40px]">{avatarEmoji}</Text>
+                    <LinearGradient
+                      colors={["#2B4EFF", "#20B8FF"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={$avatarGradient}
+                    >
+                      <Text className="font-sans text-[40px]">{avatarEmoji}</Text>
+                    </LinearGradient>
                   </View>
                   <Text className="mt-5 font-sans text-[31px] font-semibold text-[#0F1728] tracking-[-0.8px]">
-                    {investorName}
+                    Good morning, Tin
                   </Text>
                 </View>
 
@@ -674,4 +682,10 @@ const $teamSheetShadow = {
   shadowOpacity: 0.14,
   shadowRadius: 24,
   elevation: 20,
+}
+
+const $avatarGradient = {
+  flex: 1,
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
 }

@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from "react"
 
 import Config from "@/config"
 import { api } from "@/services/api"
+import {
+  loadPortfolioHistoryCache,
+  portfolioHistoryCacheSignature,
+  savePortfolioHistoryCache,
+} from "@/services/portfolioDataCache"
 
 type PortfolioTransaction = {
   ticker: string
@@ -62,21 +67,38 @@ export function usePortfolioGrowthHistory(
       return
     }
 
+    const cacheSignature = portfolioHistoryCacheSignature(`${tickers.join(",")}::${transactionKey}`)
+
     const load = async () => {
       setIsLoading(true)
+      let hadCache = false
       try {
+        const cached = await loadPortfolioHistoryCache(cacheSignature)
+        if (cached?.points.length) {
+          hadCache = true
+          if (!isActive) return
+          setPoints(cached.points)
+          if (cached.isFresh) {
+            setIsLoading(false)
+            return
+          }
+        }
+
         const result = await api.getMarketDataHistoryBatch(tickers, "1mo", "1d")
         if (!isActive) return
         if (result.kind !== "ok") {
-          setPoints([])
+          if (!hadCache) setPoints([])
           return
         }
 
         const next = buildPortfolioHistoryPoints(stableTransactions, result.history.results)
         setPoints(next)
+        await savePortfolioHistoryCache(cacheSignature, next)
       } catch {
         if (!isActive) return
-        setPoints([])
+        if (!hadCache) {
+          setPoints([])
+        }
       } finally {
         if (isActive) setIsLoading(false)
       }
