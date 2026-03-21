@@ -41,6 +41,7 @@ This repository is still organized as an agent-first harness:
 ## Current Mobile Prototype Notes
 
 - The board tab now supports creating ad hoc investment discussions, searching conversation history, and opening new thread detail views from the drafted prompt.
+- The settings tab now follows a more native grouped iOS layout with profile summary, segmented preference controls, and a dedicated onboarding reset card.
 
 ## Workflow
 
