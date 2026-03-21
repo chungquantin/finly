@@ -11,12 +11,104 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from collections import defaultdict
 from datetime import datetime, timezone, timedelta
+from threading import Lock
+
+from finly_backend.models import HeartbeatAlert
 
 logger = logging.getLogger("finly_backend.heartbeat")
 
 # US Eastern timezone offset (simplified — doesn't handle DST perfectly)
 _ET_OFFSET = timedelta(hours=-4)  # EDT
+
+_SEVERITIES = {"info", "warning", "critical"}
+
+SCENARIOS: dict[str, dict[str, str]] = {
+    "fpt_earnings_beat": {
+        "ticker": "FPT",
+        "alert_type": "earnings",
+        "headline": "FPT beats earnings guidance by 11%",
+        "body": "FPT reported stronger-than-expected quarterly results with margin expansion in software exports. Momentum names in VN tech could stay bid short-term.",
+        "attributed_to": "Market Analyst",
+        "severity": "info",
+    },
+    "vnm_margin_pressure": {
+        "ticker": "VNM",
+        "alert_type": "fundamental",
+        "headline": "VNM signals margin pressure from input costs",
+        "body": "Management highlighted cost inflation risk in milk inputs and logistics. Profitability may compress if pricing power weakens this quarter.",
+        "attributed_to": "Researcher",
+        "severity": "warning",
+    },
+    "tpb_credit_growth": {
+        "ticker": "TPB",
+        "alert_type": "macro",
+        "headline": "TPB credit growth accelerates above sector average",
+        "body": "Updated banking data points to loan book expansion outpacing peers. Monitor asset quality and provisioning signals for durability.",
+        "attributed_to": "Advisor",
+        "severity": "info",
+    },
+    "vcb_fx_volatility": {
+        "ticker": "VCB",
+        "alert_type": "macro",
+        "headline": "USD/VND volatility rises; banks on watch",
+        "body": "Currency volatility increased this week, which may affect treasury and funding assumptions across financial holdings.",
+        "attributed_to": "Risk Assessor",
+        "severity": "warning",
+    },
+    "market_liquidity_drop": {
+        "ticker": "HOSE",
+        "alert_type": "market",
+        "headline": "HOSE liquidity drops sharply intraday",
+        "body": "Trading turnover fell below recent averages, which can widen spreads and amplify downside moves in high-beta names.",
+        "attributed_to": "Risk Assessor",
+        "severity": "warning",
+    },
+    "fed_hawkish_surprise": {
+        "ticker": "SPY",
+        "alert_type": "macro",
+        "headline": "Fed commentary turns more hawkish than expected",
+        "body": "Rate-cut expectations were repriced after hawkish guidance. Growth and long-duration assets are likely to see higher volatility.",
+        "attributed_to": "Advisor",
+        "severity": "critical",
+    },
+    "bitcoin_drawdown": {
+        "ticker": "BTC-USD",
+        "alert_type": "crypto",
+        "headline": "Bitcoin drops 9% in 24h",
+        "body": "Crypto markets sold off overnight. Correlated risk assets may remain unstable while leverage is unwound.",
+        "attributed_to": "Market Analyst",
+        "severity": "warning",
+    },
+    "supply_chain_disruption": {
+        "ticker": "VNINDEX",
+        "alert_type": "geopolitical",
+        "headline": "Regional shipping delays escalate",
+        "body": "Port congestion and shipping reroutes are extending delivery times for electronics and consumer imports.",
+        "attributed_to": "Researcher",
+        "severity": "warning",
+    },
+    "hormuz_closure": {
+        "ticker": "HOSE",
+        "alert_type": "geopolitical",
+        "headline": "Strait of Hormuz closed — oil prices spike 12%",
+        "body": "Breaking: Iran has closed the Strait of Hormuz to commercial shipping. Crude oil surged 12% in Asian trading. The Risk Assessor flags elevated exposure for portfolios with energy-sensitive names. Review your holdings for supply chain risk.",
+        "attributed_to": "Risk Assessor",
+        "severity": "critical",
+    },
+    "rsi_threshold": {
+        "ticker": "VCB",
+        "alert_type": "technical",
+        "headline": "VCB RSI crosses above 70 — overbought signal",
+        "body": "VCB's 14-day RSI has crossed 70, entering overbought territory. Historically this has preceded 3-5% pullbacks within 2 weeks. The Market Analyst recommends tightening stop-losses or trimming on further strength.",
+        "attributed_to": "Market Analyst",
+        "severity": "warning",
+    },
+}
+
+_alert_queues: dict[str, list[HeartbeatAlert]] = defaultdict(list)
+_alert_lock = Lock()
 
 
 def _is_market_hours() -> bool:

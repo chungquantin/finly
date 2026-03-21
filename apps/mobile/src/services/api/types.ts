@@ -107,6 +107,29 @@ export interface TickerNewsResponse {
   items: TickerNewsItem[]
 }
 
+export interface TickerNewsInsightRequest {
+  ticker: string
+  title: string
+  summary?: string
+  url?: string
+  source?: string
+  published_at?: string
+}
+
+export interface TickerNewsInsightStreamEvent {
+  type:
+    | "started"
+    | "agent_message_start"
+    | "agent_message_delta"
+    | "agent_message_done"
+    | "error"
+    | "done"
+  agent_role?: string
+  agent_name?: string
+  message?: AgentPanelMessage
+  delta?: string
+}
+
 // ---------------------------------------------------------------------------
 // Intake (conversational goal extraction)
 // ---------------------------------------------------------------------------
@@ -282,6 +305,13 @@ export interface VoiceOnboardingResponse {
   transcript: string | null
 }
 
+export interface VoiceOnboardingStreamEvent {
+  type: "started" | "delta" | "done" | "error"
+  delta?: string
+  result?: VoiceOnboardingResponse
+  message?: string
+}
+
 // ---------------------------------------------------------------------------
 // Heartbeat Analysis
 // ---------------------------------------------------------------------------
@@ -326,12 +356,7 @@ export interface HeartbeatResultResponse {
 }
 
 export interface HeartbeatAnalyzeStreamEvent {
-  type:
-    | "started"
-    | "ticker_start"
-    | "ticker_done"
-    | "ticker_error"
-    | "done"
+  type: "started" | "ticker_start" | "ticker_done" | "ticker_error" | "done"
   tickers?: string[]
   ticker?: string
   decision?: string

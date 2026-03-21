@@ -13,6 +13,7 @@ import os
 import re
 import time
 import uuid
+import asyncio
 from datetime import date, timedelta
 from typing import Any
 from urllib.parse import urlparse
@@ -43,6 +44,7 @@ from finly_backend.models import (
     ReportRegenerateRequest,
     ReportResponse,
     SpecialistInsight,
+    TickerNewsInsightRequest,
     TickerNewsItem,
     TickerNewsResponse,
     VoiceOnboardingProfile,
@@ -291,6 +293,159 @@ def _parse_target_agents(message: str) -> list[str]:
     tags = re.findall(r"@(\w+)", message.lower())
     agents = [t for t in tags if t in _VALID_AGENTS]
     return agents if agents else ["advisor"]
+
+
+def _select_news_insight_agent(title: str, summary: str) -> str:
+    text = f"{title} {summary}".lower()
+
+    risk_keywords = (
+        "downgrade",
+        "lawsuit",
+        "investigation",
+        "antitrust",
+        "fine",
+        "miss",
+        "weak",
+        "cut guidance",
+        "fraud",
+        "risk",
+        "warning",
+        "layoff",
+        "recall",
+    )
+    trader_keywords = (
+        "breakout",
+        "technical",
+        "momentum",
+        "volatility",
+        "support",
+        "resistance",
+        "rally",
+        "plunge",
+        "surge",
+        "target price",
+        "upgrade",
+    )
+    researcher_keywords = (
+        "earnings",
+        "revenue",
+        "guidance",
+        "ceo",
+        "partnership",
+        "launch",
+        "product",
+        "acquisition",
+        "macro",
+        "inflation",
+        "regulation",
+        "analyst day",
+    )
+
+    if any(keyword in text for keyword in risk_keywords):
+        return "advisor"
+    if any(keyword in text for keyword in trader_keywords):
+        return "trader"
+    if any(keyword in text for keyword in researcher_keywords):
+        return "researcher"
+    return "analyst"
+
+
+def _agent_name(agent_role: str) -> str:
+    names = {
+        "advisor": "Advisor",
+        "analyst": "Analyst",
+        "researcher": "Researcher",
+        "trader": "Trader",
+    }
+    return names.get(agent_role, "Advisor")
+
+
+def _ticker_news_report_data(
+    ticker: str,
+    title: str,
+    summary: str,
+    source: str,
+) -> dict[str, Any]:
+    headline_context = (
+        f"Ticker: {ticker}\n"
+        f"Headline: {title}\n"
+        f"Summary: {summary or 'No summary provided.'}\n"
+        f"Source: {source or 'Unknown'}\n"
+    )
+    return {
+        "summary": f"Latest ticker-news context for {ticker}",
+        "agent_reasoning": {
+            "fundamentals_report": headline_context,
+            "sentiment_report": headline_context,
+            "news_report": headline_context,
+            "market_report": headline_context,
+        },
+    }
+
+
+def _ticker_news_user_prompt(
+    ticker: str,
+    title: str,
+    summary: str,
+    url: str,
+    source: str,
+) -> str:
+    return (
+        "Give actionable insight for this ticker headline in plain language for a beginner "
+        "investor. Keep it concise (2 short sentences): what it means now and what to watch next.\n\n"
+        f"Ticker: {ticker}\n"
+        f"Headline: {title}\n"
+        f"Summary: {summary or 'No summary provided.'}\n"
+        f"Source: {source or 'Unknown'}\n"
+        f"URL: {url or 'N/A'}"
+    )
+
+
+async def _build_today_holdings_news_context(user_id: str, max_holdings: int = 8) -> str:
+    """Build a compact same-day holdings-news summary for advisor context."""
+    portfolio = get_portfolio(user_id)
+    if not portfolio:
+        return "TODAY HOLDINGS NEWS\n- No current holdings found."
+
+    tickers: list[str] = []
+    seen: set[str] = set()
+    for item in portfolio:
+        ticker = str(item.get("ticker", "")).strip().upper()
+        if not ticker or ticker in seen:
+            continue
+        seen.add(ticker)
+        tickers.append(ticker)
+        if len(tickers) >= max_holdings:
+            break
+
+    if not tickers:
+        return "TODAY HOLDINGS NEWS\n- No current holdings found."
+
+    today = date.today().isoformat()
+
+    async def latest_line_for_ticker(ticker: str) -> str:
+        try:
+            items = await _fetch_exa_ticker_news(ticker, lookback_days=1, limit=3)
+        except Exception:
+            items = []
+        if not items:
+            try:
+                items = _fetch_yfinance_ticker_news(ticker, limit=3)
+            except Exception:
+                items = []
+
+        if not items:
+            return f"- {ticker}: no major headline today."
+
+        headline = next((item for item in items if item.published_at.startswith(today)), None)
+        if headline is None:
+            headline = items[0]
+        title = headline.title.strip() if headline.title else "No title available"
+        source = headline.source.strip() if headline.source else "Unknown"
+        return f"- {ticker}: {title} ({source})"
+
+    lines = await asyncio.gather(*(latest_line_for_ticker(ticker) for ticker in tickers))
+    return "TODAY HOLDINGS NEWS\n" + "\n".join(lines)
 
 
 
@@ -600,6 +755,100 @@ async def onboarding_voice(req: VoiceOnboardingRequest) -> VoiceOnboardingRespon
         )
 
 
+@app.post("/api/onboarding/voice/stream")
+async def onboarding_voice_stream(req: VoiceOnboardingRequest):
+    """Streaming onboarding chat response for progressive text rendering in mobile UI."""
+    import base64
+
+    from finly_backend.onboarding_chat import (
+        get_initial_greeting,
+        run_onboarding_chat_stream,
+    )
+    from finly_backend.voice import transcribe_audio
+
+    if not req.is_initial and not req.message and not req.audio_b64:
+        raise HTTPException(status_code=400, detail="Either message or audio_b64 is required")
+
+    async def event_stream():
+        transcript = None
+        try:
+            if req.is_initial:
+                greeting = get_initial_greeting()
+                done_result = VoiceOnboardingResponse(
+                    user_id=req.user_id,
+                    message=greeting,
+                    audio_b64=None,
+                    is_complete=False,
+                    turn_count=0,
+                    profile=None,
+                    transcript=None,
+                )
+                yield _sse_data({"type": "started"})
+                yield _sse_data({"type": "delta", "delta": greeting})
+                yield _sse_data({"type": "done", "result": done_result.model_dump()})
+                yield "data: [DONE]\n\n"
+                return
+
+            user_message = req.message
+            if req.audio_b64 and not req.message:
+                audio_bytes = base64.b64decode(req.audio_b64)
+                transcript = await transcribe_audio(audio_bytes, req.audio_content_type)
+                if not transcript:
+                    fallback = VoiceOnboardingResponse(
+                        user_id=req.user_id,
+                        message="Sorry, I couldn't catch that. Could you try again?",
+                        audio_b64=None,
+                        is_complete=False,
+                        turn_count=0,
+                        profile=None,
+                        transcript=None,
+                    )
+                    yield _sse_data({"type": "started"})
+                    yield _sse_data({"type": "delta", "delta": fallback.message})
+                    yield _sse_data({"type": "done", "result": fallback.model_dump()})
+                    yield "data: [DONE]\n\n"
+                    return
+                user_message = transcript
+
+            async for event in run_onboarding_chat_stream(req.user_id, str(user_message)):
+                event_type = str(event.get("type", "")).strip()
+                if event_type == "started":
+                    yield _sse_data({"type": "started"})
+                    continue
+                if event_type == "delta":
+                    yield _sse_data({"type": "delta", "delta": str(event.get("delta", ""))})
+                    continue
+                if event_type == "done":
+                    result = event.get("result") or {}
+                    profile_data = result.get("profile")
+                    profile = None
+                    if isinstance(profile_data, dict):
+                        profile = VoiceOnboardingProfile(
+                            name=profile_data.get("name"),
+                            risk=profile_data.get("risk"),
+                            horizon=profile_data.get("horizon"),
+                            knowledge=profile_data.get("knowledge"),
+                        )
+                    done_result = VoiceOnboardingResponse(
+                        user_id=str(result.get("user_id", req.user_id)),
+                        message=str(result.get("message", "")),
+                        audio_b64=None,
+                        is_complete=bool(result.get("is_complete", False)),
+                        turn_count=int(result.get("turn_count", 0)),
+                        profile=profile,
+                        transcript=transcript,
+                    )
+                    yield _sse_data({"type": "done", "result": done_result.model_dump()})
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            logger.exception("Voice onboarding stream failed for user %s", req.user_id)
+            yield _sse_data({"type": "error", "message": str(e)})
+            yield _sse_data({"type": "done"})
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
 @app.post("/api/onboarding/voice/upload")
 async def onboarding_voice_upload(
     user_id: str = Form(...),
@@ -885,7 +1134,19 @@ async def report_chat(req: PanelChatRequest) -> PanelChatResponse:
             memory_updates=[],
         )
 
+    target_agents = req.target_agents or _parse_target_agents(req.message)
+
     user_context = build_user_context(req.user_id)
+    if "advisor" in target_agents:
+        try:
+            today_news_context = await _build_today_holdings_news_context(req.user_id)
+            user_context = f"{user_context}\n\n{today_news_context}".strip()
+        except Exception as exc:
+            logger.warning(
+                "Failed to build today holdings news context for user %s: %s",
+                req.user_id,
+                exc,
+            )
     conversation_history = get_conversation_history(
         req.user_id,
         conv_type="panel",
@@ -907,9 +1168,6 @@ async def report_chat(req: PanelChatRequest) -> PanelChatResponse:
         "agent_reasoning": report.get("agent_reasoning", {}),
         "summary": report.get("summary", ""),
     }
-
-    # Determine which specialists should respond
-    target_agents = req.target_agents or _parse_target_agents(req.message)
 
     try:
         agent_responses = await agent_client.call_panel_chat(
@@ -988,7 +1246,20 @@ async def report_chat_stream(req: PanelChatRequest):
 
         return StreamingResponse(no_report_stream(), media_type="text/event-stream")
 
+    # Determine which specialists should respond.
+    target_agents = req.target_agents or _parse_target_agents(req.message)
+
     user_context = build_user_context(req.user_id)
+    if "advisor" in target_agents:
+        try:
+            today_news_context = await _build_today_holdings_news_context(req.user_id)
+            user_context = f"{user_context}\n\n{today_news_context}".strip()
+        except Exception as exc:
+            logger.warning(
+                "Failed to build today holdings news context for user %s: %s",
+                req.user_id,
+                exc,
+            )
     conversation_history = get_conversation_history(
         req.user_id,
         conv_type="panel",
@@ -1008,9 +1279,6 @@ async def report_chat_stream(req: PanelChatRequest):
         "agent_reasoning": report.get("agent_reasoning", {}),
         "summary": report.get("summary", ""),
     }
-
-    # Determine which specialists should respond
-    target_agents = req.target_agents or _parse_target_agents(req.message)
 
     async def event_stream():
         yield _sse_data({"type": "started"})
@@ -1626,6 +1894,143 @@ async def ticker_news(
     except Exception:
         logger.exception("Failed to fetch yfinance ticker news for %s", symbol)
         return TickerNewsResponse(ticker=symbol, source="none", items=[])
+
+@app.post("/api/ticker-news/insight/stream")
+async def ticker_news_insight_stream(req: TickerNewsInsightRequest):
+    """Stream a ticker-news insight from one selected specialist agent."""
+    symbol = req.ticker.strip().upper()
+    title = req.title.strip()
+    summary = req.summary.strip()
+    source = req.source.strip()
+    url = req.url.strip()
+
+    if not symbol:
+        raise HTTPException(status_code=400, detail="ticker is required")
+    if not title:
+        raise HTTPException(status_code=400, detail="title is required")
+
+    agent_role = _select_news_insight_agent(title, summary)
+    agent_name = _agent_name(agent_role)
+    report_data = _ticker_news_report_data(symbol, title, summary, source)
+    message = _ticker_news_user_prompt(symbol, title, summary, url, source)
+
+    async def event_stream():
+        yield _sse_data(
+            {"type": "started", "agent_role": agent_role, "agent_name": agent_name}
+        )
+        emitted_start = False
+        final_text = ""
+        try:
+            async for event in agent_client.call_panel_chat_stream(
+                message=message,
+                report_data=report_data,
+                user_context="",
+                conversation_history=[],
+                target_agents=[agent_role],
+            ):
+                event_type = str(event.get("type", "")).strip()
+                if event_type == "agent_message_start" and not emitted_start:
+                    emitted_start = True
+                    yield _sse_data(
+                        {
+                            "type": "agent_message_start",
+                            "message": {
+                                "agent_role": agent_role,
+                                "agent_name": agent_name,
+                                "response": "",
+                            },
+                        }
+                    )
+                    continue
+                if event_type == "agent_message_delta":
+                    delta = str(event.get("delta", ""))
+                    final_text += delta
+                    yield _sse_data(
+                        {
+                            "type": "agent_message_delta",
+                            "message": {
+                                "agent_role": agent_role,
+                                "agent_name": agent_name,
+                                "response": "",
+                            },
+                            "delta": delta,
+                        }
+                    )
+                elif event_type == "agent_message_done":
+                    response = str(event.get("message", {}).get("response", "")).strip() or final_text
+                    if response:
+                        final_text = response
+                elif event_type == "error":
+                    raise RuntimeError(str(event.get("message", "agent stream failed")))
+
+            if not emitted_start:
+                yield _sse_data(
+                    {
+                        "type": "agent_message_start",
+                        "message": {
+                            "agent_role": agent_role,
+                            "agent_name": agent_name,
+                            "response": "",
+                        },
+                    }
+                )
+            if not final_text:
+                final_text = "I couldn't finish analysis for this headline. Check source details and price action before deciding."
+            yield _sse_data(
+                {
+                    "type": "agent_message_done",
+                    "message": {
+                        "agent_role": agent_role,
+                        "agent_name": agent_name,
+                        "response": final_text,
+                    },
+                }
+            )
+            yield _sse_data({"type": "done"})
+            yield "data: [DONE]\n\n"
+        except Exception:
+            logger.exception("Ticker news insight stream failed for %s", symbol)
+            fallback = (
+                "I hit a temporary issue generating the insight. Focus on headline impact, "
+                "upcoming earnings, and risk exposure before changing position size."
+            )
+            if not emitted_start:
+                yield _sse_data(
+                    {
+                        "type": "agent_message_start",
+                        "message": {
+                            "agent_role": agent_role,
+                            "agent_name": agent_name,
+                            "response": "",
+                        },
+                    }
+                )
+            yield _sse_data(
+                {
+                    "type": "agent_message_delta",
+                    "message": {
+                        "agent_role": agent_role,
+                        "agent_name": agent_name,
+                        "response": "",
+                    },
+                    "delta": fallback,
+                }
+            )
+            yield _sse_data(
+                {
+                    "type": "agent_message_done",
+                    "message": {
+                        "agent_role": agent_role,
+                        "agent_name": agent_name,
+                        "response": fallback,
+                    },
+                }
+            )
+            yield _sse_data({"type": "error", "message": "ticker-news insight failed"})
+            yield _sse_data({"type": "done"})
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 # ---------------------------------------------------------------------------
