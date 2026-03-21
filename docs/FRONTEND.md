@@ -35,6 +35,10 @@ Use a responsive single-page flow for:
   - bento spacing/radius rules
   - typography behavior and numeric readability
   - component tone (playful + high-clarity fintech)
+- For iOS-native mobile surfaces, follow `docs/design-docs/mobile-ios-native-family-style.md` for:
+  - grouped light surfaces and floating navigation patterns
+  - iOS typography scale (34/24-28/17/13)
+  - constrained accent palette and accessibility-safe contrast
 
 ## Accessibility Baseline
 
