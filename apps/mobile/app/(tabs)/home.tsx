@@ -26,7 +26,7 @@ import { getInvestorAvatarEmoji } from "@/utils/investorAvatar"
 import { boardMessages, teamAgents } from "@/utils/mockAppData"
 import { useSelectedPortfolioData } from "@/utils/selectedPortfolio"
 
-const BORDER = "#EEF2F7"
+const BORDER = "#C7D0DC"
 const COLLAPSED_VISIBLE_HEIGHT = 228
 const SNAP_THRESHOLD = 96
 const PORTFOLIO_GROWTH_POINTS = [18, 24, 22, 31, 29, 37, 42, 40, 49, 58, 55, 64] as const

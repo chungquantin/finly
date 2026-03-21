@@ -86,6 +86,25 @@ export default function TabsLayout() {
         name="settings"
         options={{
           title: "Settings",
+          tabBarStyle: {
+            position: "absolute",
+            left: 22,
+            right: 22,
+            bottom: 14,
+            height: 88,
+            borderTopWidth: 0,
+            borderRadius: 30,
+            backgroundColor: "rgba(255,255,255,0.94)",
+            borderWidth: 1,
+            borderColor: "#C7D0DC",
+            paddingTop: 10,
+            paddingBottom: 16,
+            shadowColor: "#0F1728",
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.02,
+            shadowRadius: 16,
+            elevation: 4,
+          },
           tabBarIcon: ({ focused }) => (
             <TabIcon focused={focused} activeIcon="person" inactiveIcon="person-outline" />
           ),

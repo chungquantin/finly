@@ -128,7 +128,7 @@ export default function HoldingDetailRoute() {
         />
 
         <View className="px-4">
-          <View className="rounded-[30px] border border-[#EEF2F7] bg-white p-5">
+          <View className="rounded-[30px] border border-[#C7D0DC] bg-white p-5">
             <View className="flex-row items-center">
               <TickerLogo ticker={holding.ticker} logoUri={holding.logoUri} />
               <View className="ml-3 flex-1">
@@ -181,9 +181,9 @@ export default function HoldingDetailRoute() {
                     return (
                       <View
                         key={`${transaction.ticker}-${transaction.executedAt}-${transaction.quantity}-${transaction.price}`}
-                        className="rounded-[18px] border border-[#EEF2F7] bg-white px-4 py-3"
+                        className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3"
                       >
-                        <View className="flex-row items-center justify-between">
+                        <View className="flex-row items-start justify-between">
                           <Text className="font-sans text-[15px] font-semibold text-[#0F1728]">
                             Bought {transaction.quantity} shares
                           </Text>
@@ -200,14 +200,14 @@ export default function HoldingDetailRoute() {
                             </Text>
                           </View>
                         </View>
-                        <Text className="mt-1 font-sans text-[13px] text-[#7A8699]">
+                        <Text className="mt-0 font-sans text-[13px] text-[#7A8699]">
                           {formatExecutedAt(transaction.executedAt)}
                         </Text>
                       </View>
                     )
                   })
                 ) : (
-                  <View className="rounded-[18px] border border-[#EEF2F7] bg-white px-4 py-3">
+                  <View className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3">
                     <Text className="font-sans text-[14px] text-[#7A8699]">
                       No buy transactions recorded for this holding.
                     </Text>
@@ -251,7 +251,7 @@ export default function HoldingDetailRoute() {
 
               <View className="mt-4 gap-3">
                 {newsLoading ? (
-                  <View className="rounded-[18px] border border-[#EEF2F7] bg-white px-4 py-3">
+                  <View className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3">
                     <Text className="font-sans text-[14px] text-[#7A8699]">Loading news...</Text>
                   </View>
                 ) : null}
@@ -260,7 +260,7 @@ export default function HoldingDetailRoute() {
                   ? newsItems.map((item) => (
                       <Pressable
                         key={item.url}
-                        className="rounded-[18px] border border-[#EEF2F7] bg-white px-4 py-3"
+                        className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3"
                         onPress={() => {
                           void openLinkInBrowser(item.url)
                         }}
@@ -282,7 +282,7 @@ export default function HoldingDetailRoute() {
                   : null}
 
                 {!newsLoading && !newsItems.length ? (
-                  <View className="rounded-[18px] border border-[#EEF2F7] bg-white px-4 py-3">
+                  <View className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3">
                     <Text className="font-sans text-[14px] text-[#7A8699]">
                       No recent news found for this ticker.
                     </Text>
@@ -325,7 +325,7 @@ export default function HoldingDetailRoute() {
                 {relatedThreads.map((thread) => (
                   <Pressable
                     key={thread.id}
-                    className="rounded-[22px] border border-[#EEF2F7] bg-white px-4 py-4"
+                    className="rounded-[22px] border border-[#C7D0DC] bg-white px-4 py-4"
                     onPress={() => router.push(`/thread/${thread.id}`)}
                   >
                     <View className="flex-row items-center justify-between">

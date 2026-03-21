@@ -12,7 +12,7 @@ import { useSelectedPortfolioData } from "@/utils/selectedPortfolio"
 import { getTickerLogoUri } from "@/utils/tickerLogo"
 
 const BLUE = "#2453FF"
-const BORDER = "#EEF2F7"
+const BORDER = "#C7D0DC"
 
 const decisionColors = {
   Buy: { background: "#E9F7EF", text: "#1F8A4C" },
@@ -93,7 +93,7 @@ export default function BoardTab() {
         </View>
 
         <View className="px-4">
-          <View className="rounded-[30px] border border-[#EEF2F7] bg-white p-4">
+          <View className="rounded-[30px] border border-[#C7D0DC] bg-white p-4">
             <Text className="font-sans text-[13px] font-semibold tracking-[1.2px] text-[#7A8699]">
               NEW THREAD
             </Text>
@@ -120,7 +120,7 @@ export default function BoardTab() {
             </View>
           </View>
 
-          <View className="mt-4 rounded-[28px] border border-[#EEF2F7] bg-white px-4 py-3">
+          <View className="mt-4 rounded-[28px] border border-[#C7D0DC] bg-white px-4 py-3">
             <View className="flex-row items-center rounded-full bg-[#F4F7FF] px-4 py-2.5">
               <Ionicons name="search" size={18} color="#7A8699" />
               <TextInput
@@ -135,7 +135,7 @@ export default function BoardTab() {
 
           <View className="mt-4 gap-3">
             {!hydrated ? (
-              <View className="rounded-[28px] border border-[#EEF2F7] bg-white p-5">
+              <View className="rounded-[28px] border border-[#C7D0DC] bg-white p-5">
                 <ActivityIndicator color={BLUE} />
               </View>
             ) : null}
@@ -236,7 +236,7 @@ export default function BoardTab() {
               ))}
 
             {hydrated && filteredThreads.length === 0 ? (
-              <View className="rounded-[28px] border border-[#EEF2F7] bg-white p-5">
+              <View className="rounded-[28px] border border-[#C7D0DC] bg-white p-5">
                 <Text className="font-sans text-[18px] font-semibold text-[#0F1728]">
                   No conversations yet
                 </Text>

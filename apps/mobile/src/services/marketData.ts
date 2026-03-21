@@ -9,6 +9,7 @@ type MarketDataState = {
   quotes: Record<string, MarketDataQuote>
   isLoading: boolean
   hasLiveQuotes: boolean
+  lastUpdatedAt: number | null
 }
 
 const MARKET_DATA_URL = resolveMarketDataUrl()
@@ -36,6 +37,7 @@ export function useMarketData(tickers: string[]): MarketDataState {
   const stableTickers = useMemo(() => (tickerKey ? tickerKey.split(",") : []), [tickerKey])
   const [quotes, setQuotes] = useState<Record<string, MarketDataQuote>>({})
   const [isLoading, setIsLoading] = useState(Boolean(tickerKey && MARKET_DATA_URL))
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null)
 
   useEffect(() => {
     let isActive = true
@@ -43,12 +45,14 @@ export function useMarketData(tickers: string[]): MarketDataState {
     if (!tickerKey) {
       setQuotes({})
       setIsLoading(false)
+      setLastUpdatedAt(null)
       return
     }
 
     if (!MARKET_DATA_URL) {
       setQuotes({})
       setIsLoading(false)
+      setLastUpdatedAt(null)
       return
     }
 
@@ -64,6 +68,7 @@ export function useMarketData(tickers: string[]): MarketDataState {
         }, {})
 
         setQuotes(nextQuotes)
+        setLastUpdatedAt(Date.now())
         await saveMarketQuotesCache(tickerKey, items)
       } catch {
         if (!isActive) return
@@ -82,6 +87,7 @@ export function useMarketData(tickers: string[]): MarketDataState {
           return acc
         }, {})
         setQuotes(cachedQuotes)
+        setLastUpdatedAt(cached.cachedAt)
         if (cached.isFresh) {
           setIsLoading(false)
         }
@@ -101,7 +107,7 @@ export function useMarketData(tickers: string[]): MarketDataState {
     }
   }, [tickerKey, stableTickers])
 
-  return { quotes, isLoading, hasLiveQuotes: Object.keys(quotes).length > 0 }
+  return { quotes, isLoading, hasLiveQuotes: Object.keys(quotes).length > 0, lastUpdatedAt }
 }
 
 function resolveMarketDataUrl() {

@@ -15,7 +15,7 @@ import { getInvestorAvatarEmoji } from "@/utils/investorAvatar"
 const riskLevels: RiskExpertise[] = ["beginner", "intermediate", "expert"]
 const horizons: InvestmentHorizon[] = ["short", "medium", "long"]
 const knowledgeLevels: FinancialKnowledge[] = ["novice", "savvy", "pro"]
-const surfaceBorder = "#E5E9F2"
+const surfaceBorder = "#C7D0DC"
 const groupedBackground = "#F2F4F8"
 const dangerBorder = "#F3D1CD"
 
