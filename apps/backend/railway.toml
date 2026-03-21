@@ -5,5 +5,5 @@ dockerfilePath = "Dockerfile"
 [deploy]
 healthcheckPath = "/healthz"
 healthcheckTimeout = 300
-startCommand = "python main.py"
+startCommand = "finly-backend-api"
 numReplicas = 1
