@@ -192,11 +192,7 @@ export default function PortfolioTab() {
               </Text>
             </View>
 
-            <View className="mt-5 flex-row gap-2">
-              <Tag label={`${enrichedHoldings.length} assets`} />
-              <Tag label={`${money(portfolioSnapshot.cashUsd)} cash`} />
-              {/* Removed broken <Text> block with undefined variables and clsx usage */}
-            </View>
+            {/* Removed card with asset/cash tags */}
           </View>
 
           <View className="mt-4 rounded-[30px] border border-[#EEF2F7] bg-white p-4">
@@ -204,15 +200,7 @@ export default function PortfolioTab() {
               <Text className="font-sans text-[24px] font-semibold text-[#0F1728]">
                 {assetTab === "assets" ? "Assets" : "Watchlist"}
               </Text>
-              {assetTab === "assets" ? (
-                <Text className="font-sans text-[14px] text-[#7A8699]">
-                  Sorted by {sortLabels[sortBy].toLowerCase()}
-                </Text>
-              ) : (
-                <Text className="font-sans text-[14px] text-[#7A8699]">
-                  Sorted by latest board update
-                </Text>
-              )}
+              {/* Removed 'Sorted by ...' text */}
             </View>
 
             {assetTab === "assets" ? (
