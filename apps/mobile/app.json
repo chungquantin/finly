@@ -1,7 +1,7 @@
 {
-  "name": "mobile",
-  "slug": "mobile",
-  "scheme": "mobile",
+  "name": "Finly",
+  "slug": "finly",
+  "scheme": "finly",
   "version": "1.0.0",
   "orientation": "portrait",
   "userInterfaceStyle": "automatic",
@@ -14,7 +14,7 @@
   "assetBundlePatterns": ["**/*"],
   "android": {
     "icon": "./assets/images/app-icon-android-legacy.png",
-    "package": "com.mobile",
+    "package": "com.finly",
     "adaptiveIcon": {
       "foregroundImage": "./assets/images/app-icon-android-adaptive-foreground.png",
       "backgroundImage": "./assets/images/app-icon-android-adaptive-background.png"
@@ -25,7 +25,7 @@
   "ios": {
     "icon": "./assets/images/app-icon-ios.png",
     "supportsTablet": true,
-    "bundleIdentifier": "com.mobile"
+    "bundleIdentifier": "com.finly"
   },
   "web": {
     "favicon": "./assets/images/app-icon-web-favicon.png",
