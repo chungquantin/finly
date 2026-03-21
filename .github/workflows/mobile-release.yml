@@ -1,0 +1,77 @@
+name: Mobile Release Artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      ios_profile:
+        description: "EAS profile for iOS build"
+        required: false
+        default: "production"
+        type: string
+      android_profile:
+        description: "EAS profile for Android APK build"
+        required: false
+        default: "preview"
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-mobile-release:
+    name: Build iOS + APK artifacts
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      IOS_PROFILE: ${{ github.event.inputs.ios_profile || 'production' }}
+      ANDROID_PROFILE: ${{ github.event.inputs.android_profile || 'preview' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Build iOS artifact (.ipa)
+        run: |
+          set -euo pipefail
+          mkdir -p dist/mobile
+          IOS_URL=$(cd apps/mobile && eas build --platform ios --profile "$IOS_PROFILE" --non-interactive --wait --json | jq -r 'if type=="array" then .[0].artifacts.buildUrl else .artifacts.buildUrl end')
+          if [ -z "$IOS_URL" ] || [ "$IOS_URL" = "null" ]; then
+            echo "Unable to resolve iOS artifact URL from EAS output"
+            exit 1
+          fi
+          curl -fL "$IOS_URL" -o dist/mobile/ios.ipa
+
+      - name: Build Android artifact (.apk)
+        run: |
+          set -euo pipefail
+          mkdir -p dist/mobile
+          ANDROID_URL=$(cd apps/mobile && eas build --platform android --profile "$ANDROID_PROFILE" --non-interactive --wait --json | jq -r 'if type=="array" then .[0].artifacts.buildUrl else .artifacts.buildUrl end')
+          if [ -z "$ANDROID_URL" ] || [ "$ANDROID_URL" = "null" ]; then
+            echo "Unable to resolve Android artifact URL from EAS output"
+            exit 1
+          fi
+          curl -fL "$ANDROID_URL" -o dist/mobile/app-release.apk
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-release-artifacts
+          path: dist/mobile
+
+      - name: Attach artifacts to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/mobile/ios.ipa
+            dist/mobile/app-release.apk
