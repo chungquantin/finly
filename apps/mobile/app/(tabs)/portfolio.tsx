@@ -137,8 +137,37 @@ export default function PortfolioTab() {
         (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
       )
   }, [boardThreads, enrichedHoldings, quotes])
+  const latestHeldThreadIdByTicker = useMemo(() => {
+    const heldTickerSet = new Set(
+      enrichedHoldings.map((holding) => holding.ticker.trim().toUpperCase()),
+    )
+    const map = new Map<string, string>()
+
+    boardThreads
+      .filter((thread) => thread.ticker.trim().toUpperCase() !== "BOARD")
+      .sort(
+        (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
+      )
+      .forEach((thread) => {
+        const ticker = thread.ticker.trim().toUpperCase()
+        if (!ticker || !heldTickerSet.has(ticker) || map.has(ticker)) return
+        map.set(ticker, thread.id)
+      })
+
+    return map
+  }, [boardThreads, enrichedHoldings])
+
   const handleOpenTickerDetail = (ticker: string) => {
     const normalizedTicker = ticker.trim().toUpperCase()
+    router.push(`/holding/${normalizedTicker}`)
+  }
+  const handleOpenBoardForHolding = (ticker: string) => {
+    const normalizedTicker = ticker.trim().toUpperCase()
+    const threadId = latestHeldThreadIdByTicker.get(normalizedTicker)
+    if (threadId) {
+      router.push(`/thread/${threadId}`)
+      return
+    }
     router.push(`/holding/${normalizedTicker}`)
   }
 
@@ -253,10 +282,12 @@ export default function PortfolioTab() {
                         name={holding.name}
                         logoUri={holding.logoUri}
                         ticker={holding.ticker}
+                        shares={holding.shares}
                         value={money(holding.valueUsd)}
                         allocationPercent={holding.allocationPercent}
                         changePercent={holding.changePercent}
                         onPress={() => handleOpenTickerDetail(holding.ticker)}
+                        onViewBoard={() => handleOpenBoardForHolding(holding.ticker)}
                       />
                     ))}
                   </View>
@@ -276,6 +307,7 @@ export default function PortfolioTab() {
                 <Pressable
                   key={item.ticker}
                   className="border-b border-[#EEF2F7] py-4 last:border-b-0"
+                  style={({ hovered }) => (hovered ? $hoverCardOutline : null)}
                   onPress={() => router.push(`/watchlist/${item.ticker}`)}
                 >
                   <View className="flex-row items-center justify-between">
@@ -382,4 +414,10 @@ function SkeletonBlock({ className = "" }: { className?: string }) {
 
 const $scrollContent = {
   paddingBottom: 120,
+}
+
+const $hoverCardOutline = {
+  borderWidth: 1,
+  borderColor: "#000000",
+  borderRadius: 14,
 }

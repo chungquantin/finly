@@ -233,12 +233,14 @@ export default function HomeTab() {
                             name={holding.name}
                             logoUri={holding.logoUri}
                             ticker={holding.ticker}
+                            shares={holding.shares}
                             value={money(holding.valueUsd)}
                             allocationPercent={
                               (holding.valueUsd / Math.max(totalValueUsd, 1)) * 100
                             }
                             changePercent={holding.changePercent}
                             onPress={() => router.push(`/holding/${holding.ticker}`)}
+                            onViewBoard={() => router.push(`/holding/${holding.ticker}`)}
                           />
                         ))}
                   </View>
