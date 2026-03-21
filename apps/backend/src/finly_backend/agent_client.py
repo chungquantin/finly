@@ -87,6 +87,7 @@ async def call_panel_chat(
     report_data: dict,
     user_context: str = "",
     conversation_history: list[dict] | None = None,
+    target_agents: list[str] | None = None,
 ) -> list[dict]:
     """Call the panel chat endpoint.
 
@@ -100,6 +101,8 @@ async def call_panel_chat(
         "user_context": user_context,
         "conversation_history": conversation_history or [],
     }
+    if target_agents is not None:
+        payload["target_agents"] = target_agents
 
     try:
         async with httpx.AsyncClient(timeout=_PANEL_TIMEOUT) as client:
@@ -123,6 +126,7 @@ async def call_panel_chat_stream(
     report_data: dict,
     user_context: str = "",
     conversation_history: list[dict] | None = None,
+    target_agents: list[str] | None = None,
 ) -> AsyncIterator[dict]:
     """Call the streaming panel chat endpoint and yield SSE payloads."""
     payload = {
@@ -131,6 +135,8 @@ async def call_panel_chat_stream(
         "user_context": user_context,
         "conversation_history": conversation_history or [],
     }
+    if target_agents is not None:
+        payload["target_agents"] = target_agents
 
     try:
         async with httpx.AsyncClient(timeout=None) as client:

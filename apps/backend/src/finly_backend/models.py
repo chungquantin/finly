@@ -155,6 +155,7 @@ class PanelChatRequest(BaseModel):
     user_id: str
     message: str
     report_id: str | None = None  # references a specific report
+    target_agents: list[str] | None = None  # e.g. ["advisor"], ["trader"]; None = advisor only
 
 
 class AgentPanelMessage(BaseModel):

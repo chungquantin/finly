@@ -53,6 +53,7 @@ class AgentPanelRequest(BaseModel):
     report_data: dict  # agent_reasoning + summary from stored report
     user_context: str = ""
     conversation_history: list[dict] = []
+    target_agents: list[str] | None = None  # e.g. ["advisor"], ["trader", "analyst"]; None = all
 
 
 # ---------------------------------------------------------------------------
@@ -516,9 +517,12 @@ async def run_pipeline(req: PipelineRequest):
 
 @app.post("/agent/panel-chat")
 async def panel_chat(req: AgentPanelRequest):
-    """Run panel discussion — all 4 agents respond in parallel."""
+    """Run panel discussion — selected agents respond in parallel."""
+    targets = req.target_agents or list(AGENT_PERSONAS.keys())
     tasks = []
     for agent_key, persona in AGENT_PERSONAS.items():
+        if agent_key not in targets:
+            continue
         tasks.append(
             _call_agent(
                 agent_key,
@@ -566,9 +570,11 @@ async def panel_chat_stream(req: AgentPanelRequest):
             finally:
                 await queue.put(None)
 
+        targets = req.target_agents or list(AGENT_PERSONAS.keys())
         tasks = [
             asyncio.create_task(_run_specialist(agent_key, persona))
             for agent_key, persona in AGENT_PERSONAS.items()
+            if agent_key in targets
         ]
 
         completed = 0

@@ -272,6 +272,16 @@ def _split_chunks(text: str, chunk_size: int = 120) -> list[str]:
     return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)] or [""]
 
 
+_VALID_AGENTS = {"analyst", "researcher", "trader", "advisor"}
+
+
+def _parse_target_agents(message: str) -> list[str]:
+    """Extract @specialist tags from a message. Returns ["advisor"] if none found."""
+    tags = re.findall(r"@(\w+)", message.lower())
+    agents = [t for t in tags if t in _VALID_AGENTS]
+    return agents if agents else ["advisor"]
+
+
 def _sse_data(payload: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
@@ -886,12 +896,16 @@ async def report_chat(req: PanelChatRequest) -> PanelChatResponse:
         "summary": report.get("summary", ""),
     }
 
+    # Determine which specialists should respond
+    target_agents = req.target_agents or _parse_target_agents(req.message)
+
     try:
         agent_responses = await agent_client.call_panel_chat(
             message=req.message,
             report_data=report_data,
             user_context=user_context,
             conversation_history=conversation_history,
+            target_agents=target_agents,
         )
     except AgentServerUnavailable as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -983,6 +997,9 @@ async def report_chat_stream(req: PanelChatRequest):
         "summary": report.get("summary", ""),
     }
 
+    # Determine which specialists should respond
+    target_agents = req.target_agents or _parse_target_agents(req.message)
+
     async def event_stream():
         yield _sse_data({"type": "started"})
         collected_responses: list[dict[str, str]] = []
@@ -994,6 +1011,7 @@ async def report_chat_stream(req: PanelChatRequest):
                 report_data=report_data,
                 user_context=user_context,
                 conversation_history=conversation_history,
+                target_agents=target_agents,
             ):
                 event_type = str(event.get("type", "")).strip()
                 if event_type in {"started", "done"}:

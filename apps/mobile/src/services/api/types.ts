@@ -173,6 +173,7 @@ export interface PanelChatRequest {
   user_id: string
   message: string
   report_id?: string
+  target_agents?: string[]
 }
 
 export interface AgentPanelMessage {
