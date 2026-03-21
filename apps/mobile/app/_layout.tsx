@@ -4,6 +4,7 @@ import "@/utils/gestureHandler"
 import { useEffect, useState } from "react"
 import { useFonts } from "expo-font"
 import { Slot, SplashScreen } from "expo-router"
+import { Platform, View } from "react-native"
 import { KeyboardProvider } from "react-native-keyboard-controller"
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context"
 import "../global.css"
@@ -52,7 +53,15 @@ export default function Root() {
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <ThemeProvider>
         <KeyboardProvider>
-          <Slot />
+          {Platform.OS === "web" ? (
+            <View className="flex-1 items-center justify-center bg-[#E8EDF6] p-4">
+              <View className="h-[852px] min-h-[852px] w-[393px] min-w-[393px] overflow-hidden rounded-[36px] border border-[#CFD9EA] bg-white shadow-2xl">
+                <Slot />
+              </View>
+            </View>
+          ) : (
+            <Slot />
+          )}
         </KeyboardProvider>
       </ThemeProvider>
     </SafeAreaProvider>

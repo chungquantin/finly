@@ -8,8 +8,8 @@ const features = [
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-16 text-slate-50">
-      <div className="mx-auto flex max-w-4xl flex-col gap-10">
+    <main className="flex min-h-screen items-center justify-center bg-slate-950 p-6 text-slate-50">
+      <div className="flex min-h-[852px] min-w-[393px] max-w-[393px] flex-col gap-10 rounded-[36px] border border-white/10 bg-slate-900/70 p-8 shadow-2xl backdrop-blur">
         <section className="space-y-4">
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">
             __APP_NAME__
