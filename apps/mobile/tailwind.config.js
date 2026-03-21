@@ -5,10 +5,10 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["spaceGroteskRegular"],
-        medium: ["spaceGroteskMedium"],
-        semi: ["spaceGroteskSemiBold"],
-        bold: ["spaceGroteskBold"],
+        sans: ["System"],
+        medium: ["System"],
+        semi: ["System"],
+        bold: ["System"],
       },
       colors: {
         background: "#F9F9F9",

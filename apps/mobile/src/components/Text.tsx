@@ -1,12 +1,13 @@
+/* eslint-disable no-restricted-imports */
 import { ReactNode, forwardRef, ForwardedRef } from "react"
-// eslint-disable-next-line no-restricted-imports
-import { StyleProp, Text as RNText, TextProps as RNTextProps, TextStyle } from "react-native"
+import * as ReactNative from "react-native"
+import { Platform, StyleProp, TextProps as RNTextProps, TextStyle } from "react-native"
 import { TOptions } from "i18next"
 
 import { isRTL, TxKeyPath } from "@/i18n"
 import { translate } from "@/i18n/translate"
-import type { ThemedStyle, ThemedStyleArray } from "@/theme/types"
 import { useAppTheme } from "@/theme/context"
+import type { ThemedStyle, ThemedStyleArray } from "@/theme/types"
 import { typography } from "@/theme/typography"
 
 type Sizes = keyof typeof $sizeStyles
@@ -56,7 +57,10 @@ export interface TextProps extends RNTextProps {
  * @param {TextProps} props - The props for the `Text` component.
  * @returns {JSX.Element} The rendered `Text` component.
  */
-export const Text = forwardRef(function Text(props: TextProps, ref: ForwardedRef<RNText>) {
+export const Text = forwardRef(function Text(
+  props: TextProps,
+  ref: ForwardedRef<ReactNative.Text>,
+) {
   const { weight, size, tx, txOptions, text, children, style: $styleOverride, ...rest } = props
   const { themed } = useAppTheme()
 
@@ -73,24 +77,38 @@ export const Text = forwardRef(function Text(props: TextProps, ref: ForwardedRef
   ]
 
   return (
-    <RNText {...rest} style={$styles} ref={ref}>
+    <ReactNative.Text {...rest} style={$styles} ref={ref}>
       {content}
-    </RNText>
+    </ReactNative.Text>
   )
 })
 
 const $sizeStyles = {
-  xxl: { fontSize: 36, lineHeight: 44 } satisfies TextStyle,
-  xl: { fontSize: 24, lineHeight: 34 } satisfies TextStyle,
-  lg: { fontSize: 20, lineHeight: 32 } satisfies TextStyle,
-  md: { fontSize: 18, lineHeight: 26 } satisfies TextStyle,
-  sm: { fontSize: 16, lineHeight: 24 } satisfies TextStyle,
-  xs: { fontSize: 14, lineHeight: 21 } satisfies TextStyle,
-  xxs: { fontSize: 12, lineHeight: 18 } satisfies TextStyle,
+  xxl: { fontSize: 34, lineHeight: 41 } satisfies TextStyle,
+  xl: { fontSize: 28, lineHeight: 34 } satisfies TextStyle,
+  lg: { fontSize: 24, lineHeight: 30 } satisfies TextStyle,
+  md: { fontSize: 17, lineHeight: 22 } satisfies TextStyle,
+  sm: { fontSize: 15, lineHeight: 20 } satisfies TextStyle,
+  xs: { fontSize: 13, lineHeight: 18 } satisfies TextStyle,
+  xxs: { fontSize: 11, lineHeight: 14 } satisfies TextStyle,
+}
+
+const iosFontWeights: Record<Weights, TextStyle["fontWeight"]> = {
+  light: "300",
+  normal: "400",
+  medium: "500",
+  semiBold: "600",
+  bold: "700",
 }
 
 const $fontWeightStyles = Object.entries(typography.primary).reduce((acc, [weight, fontFamily]) => {
-  return { ...acc, [weight]: { fontFamily } }
+  const textStyle: TextStyle = { fontFamily }
+
+  if (Platform.OS === "ios" && fontFamily === "System") {
+    textStyle.fontWeight = iosFontWeights[weight as Weights]
+  }
+
+  return { ...acc, [weight]: textStyle }
 }, {}) as Record<Weights, TextStyle>
 
 const $baseStyle: ThemedStyle<TextStyle> = (theme) => ({

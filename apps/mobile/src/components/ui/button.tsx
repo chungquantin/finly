@@ -5,6 +5,7 @@ import { Pressable, Text } from "react-native"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
+import { typography } from "@/theme/typography"
 
 const buttonVariants = cva("items-center justify-center rounded-full px-5 py-3 active:opacity-90", {
   variants: {
@@ -25,7 +26,7 @@ const buttonVariants = cva("items-center justify-center rounded-full px-5 py-3 a
   },
 })
 
-const buttonTextVariants = cva("font-semi", {
+const buttonTextVariants = cva("", {
   variants: {
     variant: {
       primary: "text-white",
@@ -53,7 +54,12 @@ type ButtonProps = ComponentPropsWithoutRef<typeof Pressable> &
 export function Button({ className, textClassName, variant, size, label, ...props }: ButtonProps) {
   return (
     <Pressable className={cn(buttonVariants({ variant, size }), className)} {...props}>
-      <Text className={cn(buttonTextVariants({ variant, size }), textClassName)}>{label}</Text>
+      <Text
+        className={cn(buttonTextVariants({ variant, size }), textClassName)}
+        style={{ fontFamily: typography.primary.semiBold }}
+      >
+        {label}
+      </Text>
     </Pressable>
   )
 }

@@ -3,6 +3,7 @@ import { Text, View, type ViewProps } from "react-native"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
+import { typography } from "@/theme/typography"
 
 const badgeVariants = cva("rounded-full px-3 py-1", {
   variants: {
@@ -26,7 +27,9 @@ type BadgeProps = ViewProps &
 export function Badge({ className, variant, label, ...props }: BadgeProps) {
   return (
     <View className={cn(badgeVariants({ variant }), className)} {...props}>
-      <Text className="font-medium text-xs text-ink">{label}</Text>
+      <Text className="text-xs text-ink" style={{ fontFamily: typography.primary.medium }}>
+        {label}
+      </Text>
     </View>
   )
 }
