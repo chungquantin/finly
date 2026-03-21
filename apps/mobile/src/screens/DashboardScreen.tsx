@@ -464,7 +464,10 @@ function InsightCard({ insight }: { insight: SpecialistInsightReport }) {
         </View>
         <Text className="text-[12px] text-muted">{expanded ? "Hide" : "Details"}</Text>
       </View>
-      <Text className="mt-2 text-[14px] leading-[22px] text-ink" numberOfLines={expanded ? undefined : 3}>
+      <Text
+        className="mt-2 text-[14px] leading-[22px] text-ink"
+        numberOfLines={expanded ? undefined : 3}
+      >
         {insight.summary}
       </Text>
       {expanded && insight.full_analysis && insight.full_analysis !== insight.summary && (
@@ -504,13 +507,7 @@ function DecisionBadge({ decision }: { decision: string }) {
   )
 }
 
-function ReportTab({
-  report,
-  loading,
-}: {
-  report: ReportResponse | null
-  loading: boolean
-}) {
+function ReportTab({ report, loading }: { report: ReportResponse | null; loading: boolean }) {
   const [showFullReport, setShowFullReport] = useState(false)
 
   if (loading) {
@@ -664,10 +661,7 @@ function PanelTab({
                       >
                         <View className="flex-row items-center gap-2">
                           <Text className="text-[14px]">{meta.icon}</Text>
-                          <Text
-                            className="text-[14px] font-semi"
-                            style={{ color: meta.color }}
-                          >
+                          <Text className="text-[14px] font-semi" style={{ color: meta.color }}>
                             {meta.label}
                           </Text>
                         </View>

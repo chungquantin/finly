@@ -17,8 +17,11 @@ class NormalizedChatGoogleGenerativeAI(ChatGoogleGenerativeAI):
         content = response.content
         if isinstance(content, list):
             texts = [
-                item.get("text", "") if isinstance(item, dict) and item.get("type") == "text"
-                else item if isinstance(item, str) else ""
+                item.get("text", "")
+                if isinstance(item, dict) and item.get("type") == "text"
+                else item
+                if isinstance(item, str)
+                else ""
                 for item in content
             ]
             response.content = "\n".join(t for t in texts if t)
@@ -38,7 +41,14 @@ class GoogleClient(BaseLLMClient):
         """Return configured ChatGoogleGenerativeAI instance."""
         llm_kwargs = {"model": self.model}
 
-        for key in ("timeout", "max_retries", "google_api_key", "callbacks", "http_client", "http_async_client"):
+        for key in (
+            "timeout",
+            "max_retries",
+            "google_api_key",
+            "callbacks",
+            "http_client",
+            "http_async_client",
+        ):
             if key in self.kwargs:
                 llm_kwargs[key] = self.kwargs[key]
 

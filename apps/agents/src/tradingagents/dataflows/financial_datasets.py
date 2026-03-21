@@ -7,7 +7,6 @@ Requires FINANCIAL_DATASETS_API_KEY env var.
 from __future__ import annotations
 
 import os
-from datetime import datetime
 from typing import Annotated
 
 import httpx
@@ -25,6 +24,7 @@ def _api_key() -> str:
 
 class FinancialDatasetsError(Exception):
     """Raised when the API returns an error so callers can fall back gracefully."""
+
     pass
 
 
@@ -48,6 +48,7 @@ def _get(path: str, params: dict | None = None) -> dict:
 # Stock price data
 # ---------------------------------------------------------------------------
 
+
 def get_stock_data(
     symbol: Annotated[str, "ticker symbol of the company"],
     start_date: Annotated[str, "Start date in yyyy-mm-dd format"],
@@ -55,12 +56,15 @@ def get_stock_data(
 ) -> str:
     """Get OHLCV stock price data from Financial Datasets API."""
     try:
-        data = _get("/prices", params={
-            "ticker": symbol.upper(),
-            "interval": "day",
-            "start_date": start_date,
-            "end_date": end_date,
-        })
+        data = _get(
+            "/prices",
+            params={
+                "ticker": symbol.upper(),
+                "interval": "day",
+                "start_date": start_date,
+                "end_date": end_date,
+            },
+        )
     except FinancialDatasetsError as e:
         return f"[Data unavailable] {e}"
 
@@ -89,17 +93,21 @@ def get_stock_data(
 # Fundamentals
 # ---------------------------------------------------------------------------
 
+
 def get_fundamentals(
     ticker: Annotated[str, "ticker symbol of the company"],
     curr_date: Annotated[str, "current date"] = None,
 ) -> str:
     """Get company fundamentals overview from Financial Datasets API."""
     try:
-        data = _get("/financials/metrics", params={
-            "ticker": ticker.upper(),
-            "period": "ttm",
-            "limit": 1,
-        })
+        data = _get(
+            "/financials/metrics",
+            params={
+                "ticker": ticker.upper(),
+                "period": "ttm",
+                "limit": 1,
+            },
+        )
     except FinancialDatasetsError as e:
         return f"[Data unavailable] {e}"
 
@@ -140,6 +148,7 @@ def get_fundamentals(
 # Financial statements
 # ---------------------------------------------------------------------------
 
+
 def _get_financial_statement(
     ticker: str,
     statement_type: str,
@@ -149,11 +158,14 @@ def _get_financial_statement(
     """Generic financial statement fetcher."""
     period = "quarterly" if freq.lower() == "quarterly" else "annual"
     try:
-        data = _get(f"/financials/{statement_type}", params={
-            "ticker": ticker.upper(),
-            "period": period,
-            "limit": 4,
-        })
+        data = _get(
+            f"/financials/{statement_type}",
+            params={
+                "ticker": ticker.upper(),
+                "period": period,
+                "limit": 4,
+            },
+        )
     except FinancialDatasetsError as e:
         return f"[Data unavailable] {e}"
 
@@ -174,7 +186,14 @@ def _get_financial_statement(
         fiscal_date = stmt.get("fiscal_date_ending", stmt.get("report_period", ""))
         part_lines = [f"## Period: {period_label} ending {fiscal_date}"]
         for k, v in stmt.items():
-            if k not in ("ticker", "period", "fiscal_date_ending", "report_period", "cik", "company_name"):
+            if k not in (
+                "ticker",
+                "period",
+                "fiscal_date_ending",
+                "report_period",
+                "cik",
+                "company_name",
+            ):
                 if v is not None:
                     part_lines.append(f"  {k}: {v}")
         parts.append("\n".join(part_lines))
@@ -212,6 +231,7 @@ def get_income_statement(
 # ---------------------------------------------------------------------------
 # Technical indicators (proxy via price data)
 # ---------------------------------------------------------------------------
+
 
 def get_indicators(
     symbol: Annotated[str, "ticker symbol of the company"],
