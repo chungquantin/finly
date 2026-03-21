@@ -15,3 +15,44 @@ dev:
   (cd apps/mobile && pnpm run start) &
   (cd apps/agents && if [[ -x .venv/bin/finly-agents-api ]]; then .venv/bin/finly-agents-api; elif [[ -x .venv/bin/python ]]; then .venv/bin/python main.py; else python3 main.py; fi) &
   wait
+
+# Auto-format both codebases (matches .github/workflows/auto-format.yml)
+format: format-ts format-py
+
+format-ts:
+  cd apps/mobile
+  if [[ ! -x node_modules/.bin/prettier ]]; then pnpm install --frozen-lockfile; fi
+  pnpm exec prettier --write .
+
+format-py:
+  if [[ -x apps/agents/.venv/bin/ruff ]]; then \
+    apps/agents/.venv/bin/ruff format apps/agents && \
+    apps/agents/.venv/bin/ruff check apps/agents --fix; \
+  elif command -v ruff >/dev/null 2>&1; then \
+    ruff format apps/agents && \
+    ruff check apps/agents --fix; \
+  else \
+    python3 -m ruff format apps/agents && \
+    python3 -m ruff check apps/agents --fix; \
+  fi
+
+# CI-like checks for both codebases (excluding tests)
+lint: lint-ts lint-py
+
+lint-ts:
+  cd apps/mobile
+  if [[ ! -x node_modules/.bin/prettier || ! -x node_modules/.bin/eslint || ! -x node_modules/.bin/tsc ]]; then pnpm install --frozen-lockfile; fi
+  pnpm exec prettier --check .
+  pnpm run lint:check
+  pnpm run compile
+
+lint-py:
+  if [[ -x apps/agents/.venv/bin/python ]]; then \
+    PYTHON=apps/agents/.venv/bin/python; \
+  else \
+    PYTHON=python3; \
+  fi; \
+  "$PYTHON" -m ruff check apps/agents && \
+  "$PYTHON" -m build apps/agents && \
+  "$PYTHON" -m py_compile apps/agents/main.py && \
+  find apps/agents/src -name "*.py" -print0 | xargs -0 -n1 "$PYTHON" -m py_compile
