@@ -5,9 +5,12 @@
  *
  * https://reactnative.dev/docs/security#storing-sensitive-info
  */
-// Use your machine's LAN IP so the mobile device can reach the backend.
-// Change this if your IP changes (check with `ipconfig`).
+const apiUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000"
+const marketDataUrl = process.env.EXPO_PUBLIC_MARKET_DATA_URL || apiUrl
+const agentServerUrl = process.env.EXPO_PUBLIC_AGENT_SERVER_URL || "http://localhost:8001"
+
 export default {
-  API_URL: "http://192.168.37.85:8000",
-  MARKET_DATA_URL: "http://192.168.37.85:8000",
+  API_URL: apiUrl,
+  MARKET_DATA_URL: marketDataUrl,
+  AGENT_SERVER_URL: agentServerUrl,
 }
