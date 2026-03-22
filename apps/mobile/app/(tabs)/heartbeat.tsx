@@ -190,7 +190,7 @@ export default function HeartbeatTab() {
                           {ticker}
                         </Text>
 
-                        {isCurrent && (
+                        {!isDone && (
                           <ActivityIndicator color={BLUE} size="small" />
                         )}
                         {isDone && live && (
@@ -205,11 +205,6 @@ export default function HeartbeatTab() {
                               {live.decision}
                             </Text>
                           </View>
-                        )}
-                        {!isDone && !isCurrent && (
-                          <Text className="font-sans text-[13px] text-[#94A0B3]">
-                            Waiting...
-                          </Text>
                         )}
                       </View>
                     )

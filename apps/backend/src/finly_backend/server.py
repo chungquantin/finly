@@ -2142,16 +2142,16 @@ async def heartbeat_analyze(req: HeartbeatAnalyzeRequest):
     user_context = build_user_context(req.user_id)
 
     async def event_stream():
-        yield _sse_data({"type": "started", "tickers": tickers})
-        results = []
+        import asyncio
 
-        for ticker in tickers:
-            yield _sse_data({"type": "ticker_start", "ticker": ticker})
+        yield _sse_data({"type": "started", "tickers": tickers})
+
+        # Run all ticker analyses in parallel
+        async def analyze_one(ticker: str) -> dict:
             try:
                 result = await agent_client.call_heartbeat_analyze(
                     ticker=ticker, user_context=user_context
                 )
-                # Save to DB
                 save_heartbeat_result(
                     user_id=req.user_id,
                     ticker=ticker,
@@ -2160,21 +2160,38 @@ async def heartbeat_analyze(req: HeartbeatAnalyzeRequest):
                     full_analysis=result.get("full_analysis", ""),
                     severity=result.get("severity", "info"),
                 )
-                results.append(result)
-                yield _sse_data({
-                    "type": "ticker_done",
-                    "ticker": ticker,
-                    "decision": result.get("decision", "HOLD"),
-                    "summary": result.get("summary", ""),
-                    "severity": result.get("severity", "info"),
-                })
+                return {"ok": True, "ticker": ticker, "result": result}
             except Exception as e:
                 logger.exception("Heartbeat analyze failed for %s", ticker)
-                yield _sse_data({
-                    "type": "ticker_error",
-                    "ticker": ticker,
-                    "error": str(e),
-                })
+                return {"ok": False, "ticker": ticker, "error": str(e)}
+
+        # Emit ticker_start for all tickers up front
+        for ticker in tickers:
+            yield _sse_data({"type": "ticker_start", "ticker": ticker})
+
+        # Run concurrently and stream results as they complete
+        results = []
+        pending = {asyncio.ensure_future(analyze_one(t)): t for t in tickers}
+        while pending:
+            done_set, _ = await asyncio.wait(pending.keys(), return_when=asyncio.FIRST_COMPLETED)
+            for fut in done_set:
+                del pending[fut]
+                out = fut.result()
+                if out["ok"]:
+                    results.append(out["result"])
+                    yield _sse_data({
+                        "type": "ticker_done",
+                        "ticker": out["ticker"],
+                        "decision": out["result"].get("decision", "HOLD"),
+                        "summary": out["result"].get("summary", ""),
+                        "severity": out["result"].get("severity", "info"),
+                    })
+                else:
+                    yield _sse_data({
+                        "type": "ticker_error",
+                        "ticker": out["ticker"],
+                        "error": out["error"],
+                    })
 
         yield _sse_data({"type": "done", "results": results})
         yield "data: [DONE]\n\n"
