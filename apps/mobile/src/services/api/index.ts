@@ -43,12 +43,19 @@ export const DEFAULT_API_CONFIG: ApiConfig = {
   timeout: 30000,
 }
 
+const normalizeBaseUrl = (url: string): string => url.replace(/\/+$/, "")
+const joinApiUrl = (baseUrl: string, path: string): string =>
+  `${normalizeBaseUrl(baseUrl)}/${path.replace(/^\/+/, "")}`
+
 export class Api {
   apisauce: ApisauceInstance
   config: ApiConfig
 
   constructor(config: ApiConfig = DEFAULT_API_CONFIG) {
-    this.config = config
+    this.config = {
+      ...config,
+      url: normalizeBaseUrl(config.url),
+    }
     this.apisauce = create({
       baseURL: this.config.url,
       timeout: this.config.timeout,
@@ -127,7 +134,7 @@ export class Api {
     onEvent: (event: VoiceOnboardingStreamEvent) => void,
   ): Promise<{ kind: "ok" } | GeneralApiProblem> {
     try {
-      const url = `${this.config.url}/api/onboarding/voice/stream`
+      const url = joinApiUrl(this.config.url, "/api/onboarding/voice/stream")
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -349,7 +356,7 @@ export class Api {
     onEvent: (event: TickerNewsInsightStreamEvent) => void,
   ): Promise<{ kind: "ok" } | GeneralApiProblem> {
     try {
-      const url = `${this.config.url}/api/ticker-news/insight/stream`
+      const url = joinApiUrl(this.config.url, "/api/ticker-news/insight/stream")
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -414,7 +421,7 @@ export class Api {
     onEvent: (event: IntakeStreamEvent) => void,
   ): Promise<{ kind: "ok" } | GeneralApiProblem> {
     try {
-      const url = `${this.config.url}/api/intake/stream`
+      const url = joinApiUrl(this.config.url, "/api/intake/stream")
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -574,7 +581,7 @@ export class Api {
     onEvent: (event: PanelChatStreamEvent) => void,
   ): Promise<{ kind: "ok" } | GeneralApiProblem> {
     try {
-      const url = `${this.config.url}/api/report/chat/stream`
+      const url = joinApiUrl(this.config.url, "/api/report/chat/stream")
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -663,7 +670,7 @@ export class Api {
     onEvent?: (event: Record<string, unknown>) => void,
   ): Promise<{ kind: "ok" } | GeneralApiProblem> {
     try {
-      const url = `${this.config.url}/api/heartbeat/analyze`
+      const url = joinApiUrl(this.config.url, "/api/heartbeat/analyze")
       const body: Record<string, unknown> = { user_id: userId }
       if (tickers) body.tickers = tickers
 
