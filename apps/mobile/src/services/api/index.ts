@@ -15,6 +15,7 @@ import type {
   IntakeStreamEvent,
   MarketHistoryBatchResponse,
   MarketDataQuote,
+  MarketTickerProfile,
   OnboardingRequest,
   OnboardingResponse,
   PanelHistoryMessage,
@@ -281,6 +282,20 @@ export class Api {
       if (problem) return problem
     }
     return { kind: "ok", quotes: response.data ?? [] }
+  }
+
+  async getMarketTickerProfile(
+    ticker: string,
+  ): Promise<{ kind: "ok"; profile: MarketTickerProfile } | GeneralApiProblem> {
+    const query = new URLSearchParams({ ticker })
+    const response: ApiResponse<MarketTickerProfile> = await this.apisauce.get(
+      `/api/market-data/profile?${query.toString()}`,
+    )
+    if (!response.ok) {
+      const problem = getGeneralApiProblem(response)
+      if (problem) return problem
+    }
+    return { kind: "ok", profile: response.data! }
   }
 
   async getMarketDataHistoryBatch(
@@ -662,7 +677,24 @@ export class Api {
       })
 
       if (!response.ok) return { kind: "bad-data" }
-      if (!response.body) return { kind: "bad-data" }
+      if (!response.body) {
+        // React Native fetch may not expose a streaming reader.
+        // Fallback: parse SSE payload from full response text.
+        const text = await response.text()
+        const lines = text.split("\n")
+        for (const raw of lines) {
+          const line = raw.trim()
+          if (!line.startsWith("data:")) continue
+          const payload = line.slice(5).trim()
+          if (!payload || payload === "[DONE]") continue
+          try {
+            onEvent?.(JSON.parse(payload))
+          } catch {
+            // Ignore malformed SSE
+          }
+        }
+        return { kind: "ok" }
+      }
 
       const decoder = new TextDecoder()
       const reader = response.body.getReader()

@@ -6,12 +6,14 @@ news tools. Requires EXA_API_KEY env var.
 
 from __future__ import annotations
 
+import logging
 import os
 
 import httpx
 
 _BASE_URL = "https://api.exa.ai"
 _TIMEOUT = 30.0
+logger = logging.getLogger("tradingagents.dataflows.exa_search")
 
 
 def _api_key() -> str:
@@ -47,10 +49,24 @@ def _search(
     if category:
         body["category"] = category
 
-    with httpx.Client(timeout=_TIMEOUT) as client:
-        resp = client.post(f"{_BASE_URL}/search", headers=headers, json=body)
-        resp.raise_for_status()
-        return resp.json().get("results", [])
+    try:
+        with httpx.Client(timeout=_TIMEOUT) as client:
+            resp = client.post(f"{_BASE_URL}/search", headers=headers, json=body)
+            resp.raise_for_status()
+            return resp.json().get("results", [])
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code
+        if status == 429:
+            logger.warning("Exa rate-limited (429) for query '%s'; using empty fallback", query)
+            return []
+        logger.warning("Exa HTTP error %s for query '%s'; using empty fallback", status, query)
+        return []
+    except httpx.TimeoutException:
+        logger.warning("Exa timeout for query '%s'; using empty fallback", query)
+        return []
+    except httpx.RequestError as e:
+        logger.warning("Exa request error for query '%s': %s; using empty fallback", query, e)
+        return []
 
 
 def _format_results(results: list[dict], source_label: str) -> str:

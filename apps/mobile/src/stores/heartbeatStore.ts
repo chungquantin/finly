@@ -30,10 +30,11 @@ type HeartbeatState = {
   currentTicker: string | null
   liveResults: Record<string, LiveResult>
   isCreatingRule: boolean
+  lastAnalysisError: string | null
 
   // Actions
   refresh: (userId: string) => Promise<void>
-  startAnalysis: (userId: string) => Promise<void>
+  startAnalysis: (userId: string, tickers?: string[]) => Promise<void>
   createRule: (userId: string, rawRule: string) => Promise<void>
   deleteRule: (ruleId: string) => Promise<void>
   toggleRule: (ruleId: string) => Promise<void>
@@ -97,6 +98,7 @@ export const useHeartbeatStore = create<HeartbeatState>((set, get) => ({
   currentTicker: null,
   liveResults: {},
   isCreatingRule: false,
+  lastAnalysisError: null,
 
   refresh: async (userId: string) => {
     const [rulesRes, resultsRes] = await Promise.all([
@@ -109,57 +111,79 @@ export const useHeartbeatStore = create<HeartbeatState>((set, get) => ({
     await persist(rules, results)
   },
 
-  startAnalysis: async (userId: string) => {
+  startAnalysis: async (userId: string, tickers?: string[]) => {
+    const normalizedTickers =
+      tickers?.map((ticker) => ticker.trim().toUpperCase()).filter((ticker) => ticker.length > 0) ??
+      []
+    const uniqueTickers = normalizedTickers.length > 0 ? Array.from(new Set(normalizedTickers)) : []
+
     set({
       isAnalyzing: true,
       liveResults: {},
       completedTickers: [],
       currentTicker: null,
-      analyzingTickers: [],
+      analyzingTickers: uniqueTickers,
+      lastAnalysisError: null,
     })
 
-    await api.heartbeatAnalyzeStream(userId, undefined, (event: Record<string, unknown>) => {
-      switch (event.type) {
-        case "started":
-          set({ analyzingTickers: (event.tickers as string[]) ?? [] })
-          break
-        case "ticker_start":
-          set({ currentTicker: event.ticker as string })
-          break
-        case "ticker_done":
-          set({
-            currentTicker: null,
-            completedTickers: [...get().completedTickers, event.ticker as string],
-            liveResults: {
-              ...get().liveResults,
-              [event.ticker as string]: {
-                decision: event.decision as string,
-                summary: event.summary as string,
-                severity: event.severity as string,
+    const analyzeResult = await api.heartbeatAnalyzeStream(
+      userId,
+      uniqueTickers.length > 0 ? uniqueTickers : undefined,
+      (event: Record<string, unknown>) => {
+        switch (event.type) {
+          case "started":
+            set({ analyzingTickers: (event.tickers as string[]) ?? [] })
+            break
+          case "ticker_start":
+            set({ currentTicker: event.ticker as string })
+            break
+          case "ticker_done":
+            set({
+              currentTicker: null,
+              completedTickers: [...get().completedTickers, event.ticker as string],
+              liveResults: {
+                ...get().liveResults,
+                [event.ticker as string]: {
+                  decision: event.decision as string,
+                  summary: event.summary as string,
+                  severity: event.severity as string,
+                },
               },
-            },
-          })
-          break
-        case "ticker_error":
-          set({
-            currentTicker: null,
-            completedTickers: [...get().completedTickers, event.ticker as string],
-            liveResults: {
-              ...get().liveResults,
-              [event.ticker as string]: {
-                decision: "ERROR",
-                summary: (event.error as string) ?? "Analysis failed",
-                severity: "critical",
+            })
+            break
+          case "ticker_error":
+            set({
+              currentTicker: null,
+              completedTickers: [...get().completedTickers, event.ticker as string],
+              liveResults: {
+                ...get().liveResults,
+                [event.ticker as string]: {
+                  decision: "ERROR",
+                  summary: (event.error as string) ?? "Analysis failed",
+                  severity: "critical",
+                },
               },
-            },
-          })
-          break
-        case "done":
-          set({ isAnalyzing: false, currentTicker: null })
-          void get().refresh(userId)
-          break
-      }
-    })
+            })
+            break
+          case "done":
+            set({ isAnalyzing: false, currentTicker: null })
+            void get().refresh(userId)
+            break
+        }
+      },
+    )
+
+    if (analyzeResult.kind !== "ok") {
+      set({
+        isAnalyzing: false,
+        currentTicker: null,
+        lastAnalysisError:
+          analyzeResult.kind === "cannot-connect"
+            ? "Cannot connect to backend. Check API server and agent server."
+            : "Analysis failed before streaming response. Check backend logs.",
+      })
+      return
+    }
 
     // Safety — mark done if stream ended without "done" event
     if (get().isAnalyzing) {
@@ -202,9 +226,7 @@ export const useHeartbeatStore = create<HeartbeatState>((set, get) => ({
   markRead: async (resultId: string) => {
     const res = await api.markHeartbeatResultRead(resultId)
     if (res.kind === "ok") {
-      const results = get().results.map((r) =>
-        r.id === resultId ? { ...r, is_read: true } : r,
-      )
+      const results = get().results.map((r) => (r.id === resultId ? { ...r, is_read: true } : r))
       set({ results })
       await persist(get().rules, results)
     }

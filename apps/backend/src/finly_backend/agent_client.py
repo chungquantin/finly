@@ -21,6 +21,7 @@ AGENT_SERVER_URL = os.getenv("FINLY_AGENT_SERVER_URL", "http://localhost:8001")
 _PIPELINE_TIMEOUT = 180.0
 _PANEL_TIMEOUT = 60.0
 _HEALTH_TIMEOUT = 5.0
+_HEARTBEAT_TIMEOUT = float(os.getenv("FINLY_HEARTBEAT_TIMEOUT", "120"))
 
 
 class AgentServerUnavailable(Exception):
@@ -186,7 +187,7 @@ async def call_heartbeat_analyze(ticker: str, user_context: str = "") -> dict:
     """Call the heartbeat analysis endpoint for a single ticker."""
     payload = {"ticker": ticker, "user_context": user_context}
     try:
-        async with httpx.AsyncClient(timeout=_PIPELINE_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=_HEARTBEAT_TIMEOUT) as client:
             resp = await client.post(
                 f"{AGENT_SERVER_URL}/agent/heartbeat-analyze", json=payload
             )
@@ -197,7 +198,9 @@ async def call_heartbeat_analyze(ticker: str, user_context: str = "") -> dict:
             f"Agent server at {AGENT_SERVER_URL} is not reachable."
         )
     except httpx.TimeoutException:
-        raise AgentServerUnavailable("Agent server timed out during heartbeat analysis.")
+        raise AgentServerUnavailable(
+            f"Agent server timed out during heartbeat analysis after {_HEARTBEAT_TIMEOUT:.0f}s."
+        )
 
 
 async def call_parse_rule(raw_rule: str) -> dict:

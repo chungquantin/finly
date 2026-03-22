@@ -61,6 +61,7 @@ export default function HeartbeatTab() {
   const currentTicker = useHeartbeatStore((s) => s.currentTicker)
   const liveResults = useHeartbeatStore((s) => s.liveResults)
   const isCreatingRule = useHeartbeatStore((s) => s.isCreatingRule)
+  const lastAnalysisError = useHeartbeatStore((s) => s.lastAnalysisError)
 
   const startAnalysis = useHeartbeatStore((s) => s.startAnalysis)
   const createRule = useHeartbeatStore((s) => s.createRule)
@@ -73,8 +74,9 @@ export default function HeartbeatTab() {
 
   const handleAnalyze = useCallback(() => {
     if (isAnalyzing) return
-    void startAnalysis(getUserId())
-  }, [isAnalyzing, startAnalysis])
+    const tickers = holdings.map((holding) => holding.ticker)
+    void startAnalysis(getUserId(), tickers)
+  }, [holdings, isAnalyzing, startAnalysis])
 
   const handleCreateRule = useCallback(() => {
     const text = ruleDraft.trim()
@@ -133,6 +135,11 @@ export default function HeartbeatTab() {
               {!hasHoldings && !isAnalyzing && (
                 <Text className="mt-2 text-center font-sans text-[13px] text-[#7A8699]">
                   Add holdings in the Portfolio tab to get started
+                </Text>
+              )}
+              {lastAnalysisError && !isAnalyzing && (
+                <Text className="mt-2 text-center font-sans text-[13px] text-[#D64545]">
+                  {lastAnalysisError}
                 </Text>
               )}
 

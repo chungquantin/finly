@@ -34,6 +34,7 @@ from finly_backend.models import (
     IntakeRequest,
     IntakeResponse,
     MarketTicker,
+    MarketTickerProfile,
     OnboardingRequest,
     OnboardingResponse,
     PanelChatRequest,
@@ -1756,6 +1757,78 @@ async def market_data(tickers: str = Query(default="VCB,FPT,VNM,TPB")):
     return results
 
 
+@app.get("/api/market-data/profile")
+async def market_data_profile(ticker: str = Query(...)):
+    import yfinance as yf
+
+    symbol = ticker.strip().upper()
+    if not symbol:
+        raise HTTPException(status_code=400, detail="ticker is required")
+
+    def _to_float(value: Any) -> float | None:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        if number != number:  # NaN guard
+            return None
+        return number
+
+    def _text(value: Any) -> str | None:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+    try:
+        ticker_obj = yf.Ticker(symbol)
+        info = ticker_obj.info or {}
+        fast_info = ticker_obj.fast_info
+    except Exception as exc:
+        logger.exception("Failed to fetch yfinance profile for %s", symbol)
+        raise HTTPException(status_code=502, detail=f"Failed to fetch profile for {symbol}") from exc
+
+    market_cap = _to_float(info.get("marketCap"))
+    currency = _text(info.get("currency"))
+    exchange = _text(info.get("exchange"))
+
+    if market_cap is None:
+        try:
+            market_cap = _to_float(fast_info.get("marketCap"))
+        except Exception:
+            market_cap = None
+
+    if not currency:
+        try:
+            currency = _text(fast_info.get("currency"))
+        except Exception:
+            currency = None
+
+    if not exchange:
+        try:
+            exchange = _text(fast_info.get("exchange"))
+        except Exception:
+            exchange = None
+
+    summary = _text(info.get("longBusinessSummary"))
+    if summary and len(summary) > 700:
+        summary = f"{summary[:700].rstrip()}..."
+
+    profile = MarketTickerProfile(
+        ticker=symbol,
+        short_name=_text(info.get("shortName")),
+        long_name=_text(info.get("longName")),
+        sector=_text(info.get("sector")),
+        industry=_text(info.get("industry")),
+        exchange=exchange,
+        market_cap=market_cap,
+        currency=currency,
+        website=_text(info.get("website")),
+        summary=summary,
+    )
+    return profile.model_dump()
+
+
 def _extract_news_summary(item: dict[str, Any], max_len: int = 280) -> str:
     highlights = item.get("highlights")
     if isinstance(highlights, list):
@@ -1800,10 +1873,24 @@ async def _fetch_exa_ticker_news(
         "Content-Type": "application/json",
     }
 
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        response = await client.post("https://api.exa.ai/search", headers=headers, json=payload)
-        response.raise_for_status()
-        results = response.json().get("results", [])
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.post("https://api.exa.ai/search", headers=headers, json=payload)
+            response.raise_for_status()
+            results = response.json().get("results", [])
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code
+        if status == 429:
+            logger.warning("Exa rate limited for ticker %s; falling back to yfinance", ticker)
+            return []
+        logger.warning("Exa HTTP error %s for ticker %s; falling back to yfinance", status, ticker)
+        return []
+    except httpx.TimeoutException:
+        logger.warning("Exa timeout for ticker %s; falling back to yfinance", ticker)
+        return []
+    except httpx.RequestError as e:
+        logger.warning("Exa request error for ticker %s: %s; falling back to yfinance", ticker, e)
+        return []
 
     news_items: list[TickerNewsItem] = []
     for raw in results[:limit]:

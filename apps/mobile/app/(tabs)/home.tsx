@@ -22,18 +22,14 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { HoldingRow } from "@/components/HoldingRow"
 import { api } from "@/services/api"
 import { useMarketData } from "@/services/marketData"
-import { usePortfolioGrowthHistory } from "@/services/portfolioHistory"
 import { useOnboardingStore } from "@/stores/onboardingStore"
 import { getRandomAgentAvatar } from "@/utils/agentAvatars"
-import { getInvestorAvatarEmoji } from "@/utils/investorAvatar"
 import { teamAgents } from "@/utils/mockAppData"
 import { useSelectedPortfolioData } from "@/utils/selectedPortfolio"
 
 const BORDER = "#C7D0DC"
 const COLLAPSED_VISIBLE_HEIGHT = 228
 const SNAP_THRESHOLD = 96
-const PORTFOLIO_GROWTH_POINTS = [18, 24, 22, 31, 29, 37, 42, 40, 49, 58, 55, 64] as const
-const X_TICK_LABELS = ["8", "15", "22", "29"] as const
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-US", {
@@ -55,13 +51,10 @@ export default function HomeTab() {
     role: string
     text: string
   } | null>(null)
-  const investorName = useOnboardingStore((state) => state.name).trim() || "Investor"
   const riskExpertise = useOnboardingStore((state) => state.riskExpertise)
   const investmentHorizon = useOnboardingStore((state) => state.investmentHorizon)
   const financialKnowledge = useOnboardingStore((state) => state.financialKnowledge)
-  const portfolioType = useOnboardingStore((state) => state.portfolioType)
-  const { holdings, transactions, snapshot: portfolioSnapshot } = useSelectedPortfolioData()
-  const avatarEmoji = useMemo(() => getInvestorAvatarEmoji(investorName), [investorName])
+  const { holdings } = useSelectedPortfolioData()
   const { quotes, isLoading, hasLiveQuotes } = useMarketData(
     holdings.map((holding) => holding.ticker),
   )
@@ -82,7 +75,6 @@ export default function HomeTab() {
     () => enrichedHoldings.reduce((sum, holding) => sum + holding.valueUsd, 0),
     [enrichedHoldings],
   )
-  const growthHistory = usePortfolioGrowthHistory(transactions)
   const teamPreviewAgents = useMemo(() => teamAgents.slice(0, 4), [])
   const expandedHeight = Math.max(height - insets.top - 12, COLLAPSED_VISIBLE_HEIGHT)
   const sheetHeight = useRef(new Animated.Value(COLLAPSED_VISIBLE_HEIGHT)).current
@@ -205,20 +197,7 @@ export default function HomeTab() {
             >
               <View className="rounded-[36px] px-5 pb-6 pt-4">
                 <View className="items-center">
-                  <View
-                    className="h-24 w-24 overflow-hidden rounded-full border-[6px]"
-                    style={{ borderColor: "#91FF66" }}
-                  >
-                    <LinearGradient
-                      colors={["#2B4EFF", "#20B8FF"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={$avatarGradient}
-                    >
-                      <Text className="font-sans text-[40px]">{avatarEmoji}</Text>
-                    </LinearGradient>
-                  </View>
-                  <Text className="mt-5 font-sans text-[31px] font-semibold text-[#0F1728] tracking-[-0.8px]">
+                  <Text className="font-sans text-[31px] font-semibold text-[#0F1728] tracking-[-0.8px]">
                     Good morning, Tin
                   </Text>
                 </View>
@@ -231,7 +210,6 @@ export default function HomeTab() {
                   <InvestmentProfileCard
                     financialKnowledge={financialKnowledge}
                     investmentHorizon={investmentHorizon}
-                    portfolioType={portfolioType}
                     riskExpertise={riskExpertise}
                   />
                 </MotiView>
@@ -240,19 +218,6 @@ export default function HomeTab() {
                   animate={{ opacity: 1, translateY: 0 }}
                   from={{ opacity: 0, translateY: 16 }}
                   transition={{ delay: 220, duration: 420, type: "timing" }}
-                >
-                  <PortfolioGrowthChart
-                    history={growthHistory}
-                    holdingsCount={enrichedHoldings.length}
-                    snapshot={portfolioSnapshot}
-                    totalValueUsd={totalValueUsd}
-                  />
-                </MotiView>
-
-                <MotiView
-                  animate={{ opacity: 1, translateY: 0 }}
-                  from={{ opacity: 0, translateY: 16 }}
-                  transition={{ delay: 280, duration: 420, type: "timing" }}
                 >
                   <View className="mt-1">
                     {showPortfolioSkeleton
@@ -289,7 +254,7 @@ export default function HomeTab() {
           ]}
         >
           <View
-            className="flex-1 rounded-t-[40px] border bg-[#F6F8FF] px-4 pb-8 pt-2"
+            className="flex-1 overflow-hidden rounded-t-[32px] border bg-white px-4 pb-8 pt-2"
             style={{ borderColor: BORDER }}
           >
             <View {...headerPanResponder.panHandlers}>
@@ -412,12 +377,10 @@ function HoldingRowSkeleton() {
 function InvestmentProfileCard({
   financialKnowledge,
   investmentHorizon,
-  portfolioType,
   riskExpertise,
 }: {
   financialKnowledge: ReturnType<typeof useOnboardingStore.getState>["financialKnowledge"]
   investmentHorizon: ReturnType<typeof useOnboardingStore.getState>["investmentHorizon"]
-  portfolioType: ReturnType<typeof useOnboardingStore.getState>["portfolioType"]
   riskExpertise: ReturnType<typeof useOnboardingStore.getState>["riskExpertise"]
 }) {
   const risk = riskMeta(riskExpertise)
@@ -431,24 +394,17 @@ function InvestmentProfileCard({
 
   return (
     <View
-      className="mt-6 rounded-[28px] border bg-[#F7FAFF] px-4 py-4"
-      style={{ borderColor: BORDER }}
+      className="mt-6 rounded-[30px] border bg-white px-4 py-4"
+      style={{ borderColor: "#D9E3F0" }}
     >
-      <View className="flex-row items-center justify-between">
-        <Text className="font-sans text-[17px] font-semibold text-[#0F1728]">Investment profile</Text>
-        <View className="rounded-full bg-[#EAF1FF] px-3 py-1.5">
-          <Text className="font-sans text-[12px] font-medium text-[#2453FF]">
-            {profileTypeLabel(portfolioType)}
-          </Text>
-        </View>
-      </View>
+      <Text className="font-sans text-[16px] font-semibold text-[#142033]">Investment profile</Text>
 
-      <View className="mt-4 rounded-[18px] bg-white px-3 py-3">
+      <View className="mt-4 rounded-[20px] border border-[#E6EDF8] bg-[#FCFDFF] px-3.5 py-3.5">
         <View className="flex-row items-center justify-between">
-          <Text className="font-sans text-[14px] font-semibold text-[#0F1728]">Risk</Text>
-          <Text className="font-sans text-[14px] font-semibold text-[#0F1728]">{risk.label}</Text>
+          <Text className="font-sans text-[13px] font-medium text-[#304055]">Risk</Text>
+          <Text className="font-sans text-[13px] font-semibold text-[#1B2A3F]">{risk.label}</Text>
         </View>
-        <View className="mt-2 h-2.5 overflow-hidden rounded-full">
+        <View className="mt-2.5 h-2.5 overflow-hidden rounded-full">
           <LinearGradient
             colors={["#20B968", "#F0C14B", "#E25757"]}
             start={{ x: 0, y: 0.5 }}
@@ -456,27 +412,29 @@ function InvestmentProfileCard({
             style={{ flex: 1 }}
           />
           <View
-            className="absolute h-4 w-4 rounded-full border-2 border-white bg-[#0F1728]"
+            className="absolute h-4 w-4 rounded-full border-2 border-white bg-[#1E4DFF]"
             style={{ left: `${risk.progress * 100}%`, marginLeft: -8, marginTop: -8, top: "50%" }}
           />
         </View>
       </View>
 
-      <View className="mt-3 rounded-[18px] bg-white px-3 py-3">
+      <View className="mt-3 rounded-[20px] border border-[#E6EDF8] bg-[#FCFDFF] px-3.5 py-3.5">
         <View className="flex-row items-center justify-between">
-          <Text className="font-sans text-[14px] font-semibold text-[#0F1728]">Horizon</Text>
-          <Text className="font-sans text-[14px] font-semibold text-[#0F1728]">{horizon.label}</Text>
+          <Text className="font-sans text-[13px] font-medium text-[#304055]">Horizon</Text>
+          <Text className="font-sans text-[13px] font-semibold text-[#1B2A3F]">
+            {horizon.label}
+          </Text>
         </View>
-        <View className="mt-2 flex-row items-center justify-between">
+        <View className="mt-2.5 flex-row items-center justify-between">
           {horizonSteps.map((step, index) => (
             <View key={step.label} className="flex-1 items-center">
               <View
-                className={`h-2.5 w-2.5 rounded-full ${step.active ? "bg-[#2453FF]" : "bg-[#D5DEEC]"}`}
+                className={`h-3 w-3 rounded-full ${step.active ? "bg-[#2453FF]" : "bg-[#D5DEEC]"}`}
               />
               {index < horizonSteps.length - 1 ? (
                 <View
-                  className="absolute h-px bg-[#D5DEEC]"
-                  style={{ left: "50%", right: "-50%", top: 4 }}
+                  className="absolute h-px bg-[#D9E3F2]"
+                  style={{ left: "50%", right: "-50%", top: 5 }}
                 />
               ) : null}
             </View>
@@ -484,183 +442,18 @@ function InvestmentProfileCard({
         </View>
       </View>
 
-      <View className="mt-3 rounded-[18px] bg-white px-3 py-3">
+      <View className="mt-3 rounded-[20px] border border-[#E6EDF8] bg-[#FCFDFF] px-3.5 py-3.5">
         <View className="flex-row items-center justify-between">
-          <Text className="font-sans text-[14px] font-semibold text-[#0F1728]">Investor level</Text>
+          <Text className="font-sans text-[13px] font-medium text-[#304055]">Investor level</Text>
           <Text className="font-sans text-[13px] font-semibold text-[#2453FF]">
             L{knowledge.level} {knowledge.label}
           </Text>
         </View>
-        <View className="mt-2 h-2 overflow-hidden rounded-full bg-[#E8EEF8]">
+        <View className="mt-2.5 h-2 overflow-hidden rounded-full bg-[#E8EEF8]">
           <View
             className="h-full rounded-full bg-[#2453FF]"
             style={{ width: `${knowledge.progress * 100}%` }}
           />
-        </View>
-      </View>
-    </View>
-  )
-}
-
-function PortfolioGrowthChart({
-  history,
-  holdingsCount,
-  snapshot,
-  totalValueUsd,
-}: {
-  history: ReturnType<typeof usePortfolioGrowthHistory>
-  holdingsCount: number
-  snapshot: {
-    totalValueUsd: number
-    dailyPnlUsd: number
-    monthlyPnlPercent: number
-  }
-  totalValueUsd: number
-}) {
-  const { width } = useWindowDimensions()
-  const [chartFrameWidth, setChartFrameWidth] = useState(0)
-  const fallbackChartWidth = Math.max(width - 88, 260)
-  const chartWidth = chartFrameWidth > 0 ? chartFrameWidth : fallbackChartWidth
-  const plotInsetLeft = 28
-  const plotInsetRight = 44
-  const plotInsetTop = 6
-  const plotWidth = Math.max(chartWidth - plotInsetLeft - plotInsetRight, 180)
-  const plotHeight = 96
-  const chartValues = useMemo(() => {
-    if (history.hasLiveHistory && history.points.length > 1) {
-      return history.points.map((point) => point.value)
-    }
-    return createFallbackPortfolioSeries(snapshot.totalValueUsd)
-  }, [history.hasLiveHistory, history.points, snapshot.totalValueUsd])
-  const points = useMemo(
-    () => createChartPoints(chartValues, plotWidth, plotHeight),
-    [chartValues, plotHeight, plotWidth],
-  )
-  const lastPoint = points[points.length - 1]
-  const latestValue = chartValues[chartValues.length - 1] ?? snapshot.totalValueUsd
-  const monthlyChange = history.hasLiveHistory
-    ? history.monthlyChangePercent
-    : snapshot.monthlyPnlPercent
-  const yTickValues = useMemo(() => {
-    const minValue = Math.min(...chartValues)
-    const maxValue = Math.max(...chartValues)
-    const range = Math.max(maxValue - minValue, 1)
-    const paddedMin = Math.max(0, minValue - range * 0.25)
-    const paddedMax = maxValue + range * 0.15
-    const mid = paddedMin + (paddedMax - paddedMin) / 2
-    return [paddedMax, mid, paddedMin]
-  }, [chartValues])
-  const xTicks = useMemo(
-    () =>
-      X_TICK_LABELS.map((label, index) => ({
-        label,
-        x: plotInsetLeft + (index / (X_TICK_LABELS.length - 1)) * plotWidth,
-      })),
-    [plotInsetLeft, plotWidth],
-  )
-
-  return (
-    <View
-      className="mt-8 rounded-[30px] border bg-[#F7FAFF] px-4 py-4"
-      style={{ borderColor: BORDER }}
-    >
-      <View className="flex-row items-start justify-between">
-        <View>
-          <Text className="font-sans text-[36px] font-semibold leading-[40px] tracking-[-0.8px] text-[#0F1728]">
-            Portfolio
-          </Text>
-          <Text className="mt-1 font-sans text-[15px] text-[#7A8699]">{holdingsCount} holdings</Text>
-        </View>
-        <View className="items-end">
-          <Text className="font-sans text-[36px] font-semibold text-[#0F1728] tracking-[-0.8px]">
-            {money(totalValueUsd)}
-          </Text>
-          <Text
-            className={`mt-1 font-sans text-[16px] font-semibold ${monthlyChange >= 0 ? "text-[#22B45A]" : "text-[#F04438]"}`}
-          >
-            {monthlyChange >= 0 ? "+" : ""}
-            {monthlyChange.toFixed(2)}%
-          </Text>
-        </View>
-      </View>
-
-      <View
-        className="mt-4 h-[152px] overflow-hidden rounded-[24px] bg-white px-3 py-3"
-        onLayout={(event) => setChartFrameWidth(event.nativeEvent.layout.width)}
-      >
-        <View className="absolute h-px bg-[#D7DEE9]" style={{ left: 26, right: 12, top: 18 }} />
-        <View className="absolute h-px bg-[#D7DEE9]" style={{ left: 26, right: 12, top: 54 }} />
-        <View className="absolute h-px bg-[#D7DEE9]" style={{ left: 26, right: 12, top: 90 }} />
-        {xTicks.slice(1).map((tick) => (
-          <View
-            key={`x-grid-${tick.label}`}
-            className="absolute w-px bg-[#D7DEE9]"
-            style={{ left: tick.x, top: 14, bottom: 30 }}
-          />
-        ))}
-
-        <View className="absolute left-1 top-0">
-          {yTickValues.map((tick, index) => (
-            <Text
-              key={`y-${tick}-${index}`}
-              className="font-sans text-[11px] text-[#8B97AA]"
-              style={{ marginTop: index === 0 ? 10 : 22 }}
-            >
-              {formatAxisTick(tick)}
-            </Text>
-          ))}
-        </View>
-
-        <View className="absolute bottom-2 left-0 right-0 h-4">
-          {xTicks.map((tick) => (
-            <Text
-              key={`x-${tick.label}`}
-              className="absolute font-sans text-[11px] text-[#8B97AA]"
-              style={{ left: tick.x - 4 }}
-            >
-              {tick.label}
-            </Text>
-          ))}
-        </View>
-
-        <View className="h-full">
-          {points.slice(0, -1).map((point, index) => {
-            const segment = segmentStyle(point, points[index + 1], 5)
-            return (
-              <View
-                key={`segment-${point.x}`}
-                className="absolute left-0 top-0 rounded-full bg-[#2453FF]"
-                style={{
-                  ...segment,
-                  left: segment.left + plotInsetLeft,
-                  top: segment.top + plotInsetTop,
-                }}
-              />
-            )
-          })}
-
-          {points.map((point, index) => (
-            <View
-              key={`point-${point.x}`}
-              className={`absolute rounded-full border-2 border-white ${index === points.length - 1 ? "h-4 w-4 bg-[#91FF66]" : "h-3 w-3 bg-[#2453FF]"}`}
-              style={{
-                left: plotInsetLeft + point.x - (index === points.length - 1 ? 8 : 6),
-                top: plotInsetTop + point.y - (index === points.length - 1 ? 8 : 6),
-              }}
-            />
-          ))}
-
-          <View
-            className="absolute rounded-[18px] bg-[#0F1728] px-2.5 py-1"
-            style={{
-              left: Math.max(plotInsetLeft + lastPoint.x - 58, plotInsetLeft),
-              top: Math.max(plotInsetTop + lastPoint.y - 44, 0),
-            }}
-          >
-            <Text className="font-sans text-[11px] font-medium text-white">
-              {money(latestValue)}
-            </Text>
-          </View>
         </View>
       </View>
     </View>
@@ -898,69 +691,6 @@ function riskMeta(value: "beginner" | "intermediate" | "expert") {
   }
 }
 
-function profileTypeLabel(value: "crypto" | "stock" | null) {
-  switch (value) {
-    case "crypto":
-      return "Crypto investor"
-    case "stock":
-      return "Stock investor"
-    default:
-      return "Profile set"
-  }
-}
-
-function createChartPoints(values: readonly number[], width: number, height: number) {
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const range = Math.max(max - min, 1)
-
-  return values.map((value, index) => ({
-    x: (index / (values.length - 1)) * width,
-    y: height - ((value - min) / range) * height,
-  }))
-}
-
-function createFallbackPortfolioSeries(latestValue: number) {
-  const min = Math.min(...PORTFOLIO_GROWTH_POINTS)
-  const max = Math.max(...PORTFOLIO_GROWTH_POINTS)
-  const range = Math.max(max - min, 1)
-  const startValue = latestValue * 0.88
-  const valueRange = latestValue - startValue
-
-  return PORTFOLIO_GROWTH_POINTS.map((point) => {
-    const normalized = (point - min) / range
-    return startValue + normalized * valueRange
-  })
-}
-
-function formatAxisTick(value: number) {
-  if (value >= 1000) {
-    return `${Math.round(value / 1000)}k`
-  }
-  return `${Math.round(value)}`
-}
-
-function segmentStyle(
-  start: { x: number; y: number },
-  end: { x: number; y: number },
-  thickness = 4,
-) {
-  const dx = end.x - start.x
-  const dy = end.y - start.y
-  const length = Math.sqrt(dx * dx + dy * dy)
-  const angle = `${(Math.atan2(dy, dx) * 180) / Math.PI}deg`
-  const midpointX = (start.x + end.x) / 2
-  const midpointY = (start.y + end.y) / 2
-
-  return {
-    height: thickness,
-    left: midpointX - length / 2,
-    top: midpointY - thickness / 2,
-    transform: [{ rotate: angle }],
-    width: length,
-  }
-}
-
 const $scrollContent = {
   paddingBottom: 220,
   paddingHorizontal: 14,
@@ -977,10 +707,4 @@ const $teamSheetShadow = {
   shadowOpacity: 0.14,
   shadowRadius: 24,
   elevation: 20,
-}
-
-const $avatarGradient = {
-  flex: 1,
-  alignItems: "center" as const,
-  justifyContent: "center" as const,
 }

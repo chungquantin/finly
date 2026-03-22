@@ -69,6 +69,20 @@ export interface MarketDataQuote {
   currency: string
 }
 
+export interface MarketTickerProfile {
+  ticker: string
+  short_name: string | null
+  long_name: string | null
+  sector: string | null
+  industry: string | null
+  exchange: string | null
+  market_cap: number | null
+  currency: string | null
+  website: string | null
+  summary: string | null
+  source: string
+}
+
 export interface MarketHistoryPoint {
   date: string
   open: number

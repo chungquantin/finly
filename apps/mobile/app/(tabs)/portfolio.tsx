@@ -76,22 +76,6 @@ export default function PortfolioTab() {
     () => enrichedHoldings.reduce((sum, holding) => sum + holding.valueUsd, 0),
     [enrichedHoldings],
   )
-  const previousValueUsd = useMemo(
-    () =>
-      enrichedHoldings.reduce((sum, holding) => {
-        if (holding.changePercent <= -100) return sum + holding.valueUsd
-        return sum + holding.valueUsd / (1 + holding.changePercent / 100)
-      }, 0),
-    [enrichedHoldings],
-  )
-  const dailyChangePct = useMemo(() => {
-    if (!previousValueUsd) return portfolioSnapshot.dailyPnlPercent
-    return ((totalValueUsd - previousValueUsd) / previousValueUsd) * 100
-  }, [portfolioSnapshot.dailyPnlPercent, previousValueUsd, totalValueUsd])
-  const dailyPnlUsd = useMemo(
-    () => totalValueUsd - previousValueUsd,
-    [previousValueUsd, totalValueUsd],
-  )
   const totalPnlUsd = useMemo(
     () => totalValueUsd - portfolioSnapshot.investedUsd,
     [portfolioSnapshot.investedUsd, totalValueUsd],
@@ -102,7 +86,6 @@ export default function PortfolioTab() {
   }, [portfolioSnapshot.investedUsd, totalPnlUsd])
   const accountBalanceUsd = useMemo(() => totalValueUsd, [totalValueUsd])
   const totalPnlLabel = totalPnlUsd >= 0 ? "Total Gain" : "Total Loss"
-  const dailyPnlLabel = dailyPnlUsd >= 0 ? "Day's Gain" : "Day's Loss"
   const sortedHoldings = useMemo(() => {
     const nextHoldings = [...enrichedHoldings]
 
@@ -196,19 +179,6 @@ export default function PortfolioTab() {
             {showPortfolioSkeleton ? <SkeletonBlock className="mt-2 h-10 w-40" /> : null}
 
             <View className="mt-3 flex-row items-center">
-              <Text
-                className={`font-sans text-[17px] font-bold ${
-                  dailyPnlUsd >= 0 ? "text-[#22B45A]" : "text-[#F04438]"
-                }`}
-              >
-                {signedMoney(dailyPnlUsd)} ({signedPct(dailyChangePct)})
-              </Text>
-              <Text className="ml-2 font-sans text-[17px] font-bold text-[#0F1728]">
-                {dailyPnlLabel}
-              </Text>
-            </View>
-
-            <View className="mt-2 flex-row items-center">
               <Text
                 className={`font-sans text-[17px] font-bold ${
                   totalPnlUsd >= 0 ? "text-[#22B45A]" : "text-[#F04438]"

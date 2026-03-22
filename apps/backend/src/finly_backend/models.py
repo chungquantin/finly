@@ -204,6 +204,20 @@ class MarketTicker(BaseModel):
     currency: str
 
 
+class MarketTickerProfile(BaseModel):
+    ticker: str
+    short_name: str | None = None
+    long_name: str | None = None
+    sector: str | None = None
+    industry: str | None = None
+    exchange: str | None = None
+    market_cap: float | None = None
+    currency: str | None = None
+    website: str | None = None
+    summary: str | None = None
+    source: str = "yfinance"
+
+
 # ---------------------------------------------------------------------------
 # Ticker news
 # ---------------------------------------------------------------------------

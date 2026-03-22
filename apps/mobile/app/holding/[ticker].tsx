@@ -1,14 +1,19 @@
 /* eslint-disable no-restricted-imports */
 import { useEffect, useMemo, useState } from "react"
-import { Pressable, ScrollView, Text, View } from "react-native"
+import { Image, Pressable, ScrollView, Text, View } from "react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { IosHeader } from "@/components/IosHeader"
 import { TickerLogo } from "@/components/TickerLogo"
 import { api } from "@/services/api"
-import type { TickerNewsInsightStreamEvent, TickerNewsItem } from "@/services/api/types"
+import type {
+  MarketTickerProfile,
+  TickerNewsInsightStreamEvent,
+  TickerNewsItem,
+} from "@/services/api/types"
 import { useAgentBoardStore } from "@/stores/agentBoardStore"
+import { getRandomAgentAvatar } from "@/utils/agentAvatars"
 import { holdingDecisions } from "@/utils/mockAppData"
 import { openLinkInBrowser } from "@/utils/openLinkInBrowser"
 import { useSelectedPortfolioData } from "@/utils/selectedPortfolio"
@@ -19,6 +24,66 @@ const QUICK_PROMPT_TEMPLATES = [
   "What are the main downside risks for {ticker} in the next quarter?",
   "If I rotate out of {ticker}, what are better alternatives right now?",
 ] as const
+
+type SpecialistIdentity = {
+  name: string
+  role: string
+  roleKey: AgentRoleKey
+}
+type NewsInsightCard = {
+  key: string
+  item: TickerNewsItem
+  insight: string
+  specialist: SpecialistIdentity
+}
+
+const ROLE_NAME_BY_KEY = {
+  advisor: "Avery",
+  analyst: "Kai",
+  trader: "Noor",
+  researcher: "Milo",
+} as const
+
+const ROLE_TITLE_BY_KEY = {
+  advisor: "Advisor",
+  analyst: "Analyst",
+  trader: "Trader",
+  researcher: "Researcher",
+} as const
+
+type AgentRoleKey = keyof typeof ROLE_NAME_BY_KEY
+
+const normalizeAgentRoleKey = (value?: string | null): AgentRoleKey => {
+  const normalized = (value ?? "").trim().toLowerCase()
+  if (!normalized) return "advisor"
+  if (normalized.includes("advisor")) return "advisor"
+  if (normalized.includes("analyst")) return "analyst"
+  if (normalized.includes("research")) return "researcher"
+  if (normalized.includes("trader")) return "trader"
+  if (normalized.includes("risk")) return "trader"
+  if (normalized.includes("portfolio")) return "advisor"
+  return "advisor"
+}
+
+const resolveSpecialistIdentity = (
+  agentName?: string | null,
+  agentRole?: string | null,
+): SpecialistIdentity => {
+  const normalizedName = (agentName ?? "").trim().toLowerCase()
+  if (normalizedName === "avery") return { name: "Avery", role: "Advisor", roleKey: "advisor" }
+  if (normalizedName === "kai") return { name: "Kai", role: "Analyst", roleKey: "analyst" }
+  if (normalizedName === "milo") return { name: "Milo", role: "Researcher", roleKey: "researcher" }
+  if (normalizedName === "noor") return { name: "Noor", role: "Trader", roleKey: "trader" }
+
+  const roleKey = normalizeAgentRoleKey(agentRole || agentName)
+  return {
+    name: ROLE_NAME_BY_KEY[roleKey],
+    role: ROLE_TITLE_BY_KEY[roleKey],
+    roleKey,
+  }
+}
+
+const newsInsightKey = (item: TickerNewsItem) => item.url || `${item.title}-${item.published_at}`
 
 export default function HoldingDetailRoute() {
   const router = useRouter()
@@ -72,12 +137,12 @@ export default function HoldingDetailRoute() {
   const quickPrompts = QUICK_PROMPT_TEMPLATES.map((template) =>
     template.replace("{ticker}", (ticker ?? "").toUpperCase()),
   )
+  const [tickerProfile, setTickerProfile] = useState<MarketTickerProfile | null>(null)
+  const [profileLoading, setProfileLoading] = useState(false)
   const [newsItems, setNewsItems] = useState<TickerNewsItem[]>([])
   const [newsSource, setNewsSource] = useState<string>("")
   const [newsLoading, setNewsLoading] = useState(false)
-  const [newsInsight, setNewsInsight] = useState("")
-  const [newsInsightAgent, setNewsInsightAgent] = useState("Advisor")
-  const [newsInsightLoading, setNewsInsightLoading] = useState(false)
+  const [newsInsightCards, setNewsInsightCards] = useState<NewsInsightCard[]>([])
 
   useEffect(() => {
     if (!holding?.ticker) return
@@ -85,70 +150,95 @@ export default function HoldingDetailRoute() {
 
     const loadTickerNews = async () => {
       setNewsLoading(true)
-      setNewsInsight("")
-      setNewsInsightAgent("Advisor")
-      setNewsInsightLoading(false)
+      setNewsInsightCards([])
       const result = await api.getTickerNews(holding.ticker, 6, 7)
       if (cancelled) return
 
       if (result.kind === "ok") {
         setNewsItems(result.news.items)
         setNewsSource(result.news.source.toUpperCase())
-        const topItem = result.news.items[0]
-        if (topItem) {
-          setNewsInsightLoading(true)
+        for (const item of result.news.items) {
+          if (cancelled) return
+          const key = newsInsightKey(item)
+          let streamedInsight = ""
+          let streamedIdentity = resolveSpecialistIdentity()
           const streamResult = await api.streamTickerNewsInsight(
             {
               ticker: holding.ticker,
-              title: topItem.title,
-              summary: topItem.summary,
-              url: topItem.url,
-              source: topItem.source,
-              published_at: topItem.published_at,
+              title: item.title,
+              summary: item.summary,
+              url: item.url,
+              source: item.source,
+              published_at: item.published_at,
             },
             (event: TickerNewsInsightStreamEvent) => {
               if (cancelled) return
-              if (event.agent_name) {
-                setNewsInsightAgent(event.agent_name)
-              }
-              if (event.type === "started") {
-                if (event.agent_name) setNewsInsightAgent(event.agent_name)
-              } else if (event.type === "agent_message_start") {
-                if (event.message?.agent_name) setNewsInsightAgent(event.message.agent_name)
-                setNewsInsight("")
+              streamedIdentity = resolveSpecialistIdentity(
+                event.message?.agent_name ?? event.agent_name,
+                event.message?.agent_role ?? event.agent_role,
+              )
+              if (event.type === "agent_message_start") {
+                streamedInsight = ""
               } else if (event.type === "agent_message_delta") {
                 const delta = event.delta ?? ""
-                if (delta) {
-                  setNewsInsight((prev) => prev + delta)
-                }
+                if (delta) streamedInsight += delta
               } else if (event.type === "agent_message_done") {
                 const finalText = event.message?.response ?? ""
-                if (finalText) {
-                  setNewsInsight(finalText)
-                }
-                setNewsInsightLoading(false)
-              } else if (event.type === "done" || event.type === "error") {
-                setNewsInsightLoading(false)
+                if (finalText) streamedInsight = finalText
               }
             },
           )
-          if (!cancelled && streamResult.kind !== "ok") {
-            setNewsInsightLoading(false)
-            setNewsInsight(
-              "Insight is temporarily unavailable. Review the top headline and wait for the next update.",
-            )
+          if (cancelled) return
+          const finalInsight =
+            streamResult.kind === "ok" && streamedInsight.trim()
+              ? streamedInsight
+              : "Insight is temporarily unavailable. Review this headline and check back soon."
+
+          setNewsInsightCards((prev) => [
+            ...prev,
+            {
+              key,
+              item,
+              insight: finalInsight,
+              specialist: streamedIdentity,
+            },
+          ])
+          if (streamResult.kind !== "ok") {
+            continue
           }
         }
       } else {
         setNewsItems([])
         setNewsSource("")
-        setNewsInsight("")
-        setNewsInsightLoading(false)
+        setNewsInsightCards([])
       }
       setNewsLoading(false)
     }
 
     loadTickerNews()
+    return () => {
+      cancelled = true
+    }
+  }, [holding?.ticker])
+
+  useEffect(() => {
+    if (!holding?.ticker) return
+    let cancelled = false
+
+    const loadTickerProfile = async () => {
+      setProfileLoading(true)
+      const result = await api.getMarketTickerProfile(holding.ticker)
+      if (cancelled) return
+
+      if (result.kind === "ok") {
+        setTickerProfile(result.profile)
+      } else {
+        setTickerProfile(null)
+      }
+      setProfileLoading(false)
+    }
+
+    void loadTickerProfile()
     return () => {
       cancelled = true
     }
@@ -210,16 +300,38 @@ export default function HoldingDetailRoute() {
 
             <View className="mt-5 rounded-[24px] bg-[#F7F9FC] p-4">
               <Text className="font-sans text-[14px] font-semibold tracking-[1.1px] text-[#7A8699]">
-                BOARD INTAKE
+                TICKER OVERVIEW
               </Text>
-              <Text className="mt-2 font-sans text-[20px] font-semibold text-[#0F1728]">
-                {decision.intake}
-              </Text>
-              <View className="mt-4 flex-row flex-wrap gap-2">
-                <Tag label={`Conviction: ${decision.conviction}`} />
-                <Tag label={`Target: ${decision.targetPosition}`} />
-                <Tag label={`Review: ${decision.nextReview}`} />
-              </View>
+              {profileLoading ? (
+                <Text className="mt-2 font-sans text-[14px] text-[#607089]">
+                  Loading company information...
+                </Text>
+              ) : tickerProfile ? (
+                <>
+                  <Text className="mt-2 font-sans text-[20px] font-semibold text-[#0F1728]">
+                    {tickerProfile.long_name || tickerProfile.short_name || holding.ticker}
+                  </Text>
+                  <Text className="mt-1 font-sans text-[14px] text-[#607089]">
+                    {[
+                      tickerProfile.sector,
+                      tickerProfile.industry,
+                      tickerProfile.exchange,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "No sector/industry details available"}
+                  </Text>
+                  <Text className="mt-2 font-sans text-[13px] text-[#7A8699]">
+                    Market cap: {formatMarketCap(tickerProfile.market_cap, tickerProfile.currency)}
+                  </Text>
+                  <Text className="mt-2 font-sans text-[14px] leading-6 text-[#425168]">
+                    {tickerProfile.summary || "No business summary available for this ticker."}
+                  </Text>
+                </>
+              ) : (
+                <Text className="mt-2 font-sans text-[14px] text-[#607089]">
+                  Company information is temporarily unavailable.
+                </Text>
+              )}
             </View>
 
             <View className="mt-5 rounded-[24px] bg-[#FBFBFD] p-4">
@@ -307,36 +419,73 @@ export default function HoldingDetailRoute() {
               </Text>
 
               <View className="mt-4 gap-3">
-                {newsLoading ? (
+                {newsLoading && newsInsightCards.length === 0 ? (
                   <View className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3">
                     <Text className="font-sans text-[14px] text-[#7A8699]">Loading news...</Text>
                   </View>
                 ) : null}
 
-                {!newsLoading && newsItems.length
-                  ? newsItems.map((item) => (
-                      <Pressable
-                        key={item.url}
-                        className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3"
-                        onPress={() => {
-                          void openLinkInBrowser(item.url)
-                        }}
-                      >
-                        <Text className="font-sans text-[15px] font-semibold leading-6 text-[#0F1728]">
-                          {item.title}
-                        </Text>
-                        {!!item.summary && (
-                          <Text className="mt-1 font-sans text-[13px] leading-5 text-[#607089]">
-                            {item.summary}
-                          </Text>
-                        )}
-                        <Text className="mt-2 font-sans text-[12px] text-[#7A8699]">
-                          {formatPublishedAt(item.published_at)}
-                          {item.source ? ` · ${item.source}` : ""}
-                        </Text>
-                      </Pressable>
-                    ))
+                {newsInsightCards.length
+                  ? newsInsightCards.map(({ key, item, specialist, insight }) => {
+                      const specialistAvatar = getRandomAgentAvatar(specialist.roleKey)
+
+                      return (
+                        <View key={key}>
+                          <Pressable
+                            className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3"
+                            onPress={() => {
+                              void openLinkInBrowser(item.url)
+                            }}
+                          >
+                            <Text className="font-sans text-[15px] font-semibold leading-6 text-[#0F1728]">
+                              {item.title}
+                            </Text>
+                            {!!item.summary && (
+                              <Text className="mt-1 font-sans text-[13px] leading-5 text-[#607089]">
+                                {item.summary}
+                              </Text>
+                            )}
+                            <Text className="mt-2 font-sans text-[12px] text-[#7A8699]">
+                              {formatPublishedAt(item.published_at)}
+                              {item.source ? ` · ${item.source}` : ""}
+                            </Text>
+                          </Pressable>
+
+                          <View className="mt-2 rounded-[18px] border border-[#DCE6FF] bg-[#F7F9FF] px-4 py-3">
+                            <Text className="font-sans text-[15px] font-semibold text-[#0F1728]">
+                              Finly insight
+                            </Text>
+                            <View className="mt-2 flex-row items-center">
+                              <Image
+                                source={specialistAvatar.image}
+                                style={{ width: 30, height: 30, borderRadius: 999 }}
+                                resizeMode="cover"
+                              />
+                              <View className="ml-2">
+                                <Text className="font-sans text-[13px] font-semibold text-[#0F1728]">
+                                  {specialist.name}
+                                </Text>
+                                <Text className="font-sans text-[12px] text-[#607089]">
+                                  {specialist.role}
+                                </Text>
+                              </View>
+                            </View>
+                            <Text className="mt-2 font-sans text-[14px] leading-6 text-[#425168]">
+                              {insight || "No insight generated yet."}
+                            </Text>
+                          </View>
+                        </View>
+                      )
+                    })
                   : null}
+
+                {newsLoading && newsInsightCards.length > 0 ? (
+                  <View className="rounded-[18px] border border-[#DCE6FF] bg-[#F7F9FF] px-4 py-3">
+                    <Text className="font-sans text-[14px] text-[#607089]">
+                      Generating next news insight...
+                    </Text>
+                  </View>
+                ) : null}
 
                 {!newsLoading && !newsItems.length ? (
                   <View className="rounded-[18px] border border-[#C7D0DC] bg-white px-4 py-3">
@@ -346,25 +495,6 @@ export default function HoldingDetailRoute() {
                   </View>
                 ) : null}
 
-                {!newsLoading && newsItems.length ? (
-                  <View className="rounded-[18px] border border-[#DCE6FF] bg-[#F7F9FF] px-4 py-3">
-                    <View className="flex-row items-center justify-between">
-                      <Text className="font-sans text-[15px] font-semibold text-[#0F1728]">
-                        Finly insight
-                      </Text>
-                      <View className="rounded-full bg-[#EAF1FF] px-3 py-1">
-                        <Text className="font-sans text-[12px] font-semibold text-[#2453FF]">
-                          {newsInsightAgent}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text className="mt-2 font-sans text-[14px] leading-6 text-[#425168]">
-                      {newsInsightLoading && !newsInsight
-                        ? "Generating insight..."
-                        : newsInsight || "No insight generated yet."}
-                    </Text>
-                  </View>
-                ) : null}
               </View>
             </View>
 
@@ -437,14 +567,6 @@ export default function HoldingDetailRoute() {
   )
 }
 
-function Tag({ label }: { label: string }) {
-  return (
-    <View className="rounded-full bg-[#F3F6FC] px-3 py-2">
-      <Text className="font-sans text-[13px] text-[#607089]">{label}</Text>
-    </View>
-  )
-}
-
 function lotGainUsd(
   holdingValueUsd: number,
   holdingShares: number,
@@ -483,6 +605,16 @@ function formatRelativeTime(value: string) {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   return `${days}d ago`
+}
+
+function formatMarketCap(value: number | null, currency: string | null) {
+  if (value === null || !Number.isFinite(value)) return "Unavailable"
+  const abs = Math.abs(value)
+  const suffix = abs >= 1_000_000_000_000 ? "T" : abs >= 1_000_000_000 ? "B" : "M"
+  const divisor = suffix === "T" ? 1_000_000_000_000 : suffix === "B" ? 1_000_000_000 : 1_000_000
+  const normalized = value / divisor
+  const prefix = currency ? `${currency} ` : ""
+  return `${prefix}${normalized.toFixed(2)}${suffix}`
 }
 
 const $content = {
